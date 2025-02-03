@@ -32,7 +32,7 @@ def main():
             x = pos_x[particle_index]
             y = pos_y[particle_index]
             z = pos_z[particle_index]
-            if (x_min < x < x_max and y_min < y < y_max and z_min < z < z_max):
+            if (x_min <= x < x_max and y_min <= y < y_max and z_min <= z < z_max):
                 cells_python[cell_index] += 1
 
 

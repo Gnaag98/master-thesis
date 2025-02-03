@@ -7,17 +7,6 @@
 #include "grid.cuh"
 #include "particles.cuh"
 
-struct Range {
-    float min;
-    float max;
-};
-
-struct Space {
-    Range x;
-    Range y;
-    Range z;
-};
-
 const auto random_seed = 1u;
 const auto block_size = 128;
 
@@ -25,21 +14,25 @@ const auto block_size = 128;
 const auto particle_charge = 1.0f;
 // XXX: Hardcoded dimensions.
 constexpr auto grid_dimensions = dim3{ 2, 4, 8 };
-// XXX: Hardcoded dimensions.
-constexpr auto space = Space{ { 0, 128 }, { 0, 256 }, { 0, 512 } };
+// Side length of cubic cell.
+constexpr auto cell_size = 64;
+constexpr auto space_dimensions = dim3{
+    grid_dimensions.x * cell_size,
+    grid_dimensions.x * cell_size,
+    grid_dimensions.x * cell_size
+};
 
 void distribute(amitis::HostParticles &particles) {
     auto random_engine = std::default_random_engine(random_seed);
 
-    
     auto distribution_x = std::uniform_real_distribution<float>(
-        space.x.min, space.x.max
+        0, space_dimensions.x
     );
     auto distribution_y = std::uniform_real_distribution<float>(
-        space.y.min, space.y.max
+        0, space_dimensions.y
     );
     auto distribution_z = std::uniform_real_distribution<float>(
-        space.z.min, space.z.max
+        0, space_dimensions.z
     );
 
     for (auto i = 0; i < particles.pos_x.size(); ++i) {
@@ -50,15 +43,13 @@ void distribute(amitis::HostParticles &particles) {
 }
 
 constexpr auto x_to_u(const float x) {
-    return (x - space.x.min) * grid_dimensions.x / (space.x.max - space.x.min);
+    return x * (grid_dimensions.x / space_dimensions.x);
 }
-
 constexpr auto y_to_v(const float y) {
-    return (y - space.y.min) * grid_dimensions.y / (space.y.max - space.y.min);
+    return y * (grid_dimensions.y / space_dimensions.y);
 }
-
 constexpr auto z_to_w(const float z) {
-    return (z - space.z.min) * grid_dimensions.z / (space.z.max - space.z.min);
+    return z * (grid_dimensions.z / space_dimensions.z);
 }
 
 constexpr auto get_cell_index(const float u, const float v, const float w) {
