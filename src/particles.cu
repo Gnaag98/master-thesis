@@ -23,9 +23,10 @@ void amitis::HostParticles::save_positions(std::filesystem::path filepath) {
 }
 
 amitis::DeviceParticles::DeviceParticles(const HostParticles &particles) {
-    cudaMalloc(&pos_x, particles.pos_x.size() * sizeof(float));
-    cudaMalloc(&pos_y, particles.pos_y.size() * sizeof(float));
-    cudaMalloc(&pos_z, particles.pos_z.size() * sizeof(float));
+    const auto size = particles.pos_x.size();
+    cudaMalloc(&pos_x, size * sizeof(float));
+    cudaMalloc(&pos_y, size * sizeof(float));
+    cudaMalloc(&pos_z, size * sizeof(float));
 }
 
 amitis::DeviceParticles::~DeviceParticles() {
