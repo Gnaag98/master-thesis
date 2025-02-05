@@ -2,7 +2,7 @@
 
 #include <fstream>
 
-amitis::HostGrid::HostGrid(const dim3 dimensions)
+amitis::HostGrid::HostGrid(const int3 dimensions)
     : cells(dimensions.x * dimensions.y * dimensions.z),
       dimensions{ dimensions } {}
 
@@ -17,7 +17,7 @@ void amitis::HostGrid::save(std::filesystem::path filepath) {
     file << '\n';
 }
 
-amitis::DeviceGrid::DeviceGrid(const dim3 dimensions)
+amitis::DeviceGrid::DeviceGrid(const int3 dimensions)
     : dimensions{ dimensions } {
     const auto cell_count = dimensions.x * dimensions.y * dimensions.z;
     cudaMalloc(&cells, cell_count * sizeof(float));
