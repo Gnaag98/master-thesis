@@ -5,4 +5,3 @@ cd build
 make
 ./master_thesis $1 ../output
 cd ..
-.venv/bin/python plot.py
