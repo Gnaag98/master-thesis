@@ -9,9 +9,9 @@ namespace amitis {
 
     struct HostGrid {
         std::vector<float> cells;
-        dim3 dimensions;
+        int3 dimensions;
 
-        HostGrid(dim3 dimensions);
+        HostGrid(int3 dimensions);
 
         void copy(const DeviceGrid &grid);
 
@@ -20,9 +20,9 @@ namespace amitis {
 
     struct DeviceGrid {
         float *cells;
-        dim3 dimensions;
+        int3 dimensions;
 
-        DeviceGrid(dim3 dimensions);
+        DeviceGrid(int3 dimensions);
         DeviceGrid(const DeviceGrid &) = delete;
         ~DeviceGrid();
 
