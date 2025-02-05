@@ -9,8 +9,8 @@ import numpy as np
 def main():
     # Grid parameters with ghost cells included.
     cell_size = 64
-    grid_size_x = 4+2
-    grid_size_y = 2+2
+    grid_size_x = 32+2
+    grid_size_y = 16+2
 
     # Output directory relative to this file.
     scripts_directory = Path(__file__).parent
@@ -45,7 +45,7 @@ def main():
     ax.add_patch(Rectangle((-1, -1), grid_size_x, grid_size_y, edgecolor='k', facecolor='none'))
     ax.add_patch(Rectangle((0, 0), grid_size_x-2, grid_size_y-2, edgecolor='r', facecolor='none'))
     # Plot particle positions.
-    ax.scatter(x, y, s=[8*4 for _ in range(len(x))])
+    #ax.scatter(x, y, s=[8*1 for _ in range(len(x))])
     # Show the figure.
     plt.axis('equal')
     plt.show()
