@@ -2,12 +2,23 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <string>
 #include <vector>
 
+#include <cub/device/device_radix_sort.cuh>
+
 #include "grid.cuh"
+#include "int_array.cuh"
 #include "particles.cuh"
 
+enum class Version {
+    global = 0,
+    shared
+};
+
 const auto random_seed = 1u;
+// XXX: Hardcoded block_size.
+const auto block_size = 128;
 
 auto generate_particles_from_2d_pattern(
     const int3 simulation_dimensions, const int cell_size,
@@ -185,10 +196,68 @@ constexpr auto cell_index(const int3 cell_center,
              + (k * grid_dimensions.x * grid_dimensions.y);
 }
 
+/// https://graphics.stanford.edu/%7Eseander/bithacks.html#RoundUpPowerOf2
+constexpr
+auto ceil_pow2(const int number) -> int {
+    auto v = static_cast<uint32_t>(number);
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v++;
+    v += v == 0;
+    return static_cast<int>(v);
+}
+
 __global__
-void charge_density_global_2d(const float *pos_x, const float *pos_y,
-        const uint particle_count, float particle_charge, float *densities,
-        const int3 grid_dimensions, const int cell_size) {
+void initialize_indices(int *indices, const size_t particle_count) {
+    const auto index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= particle_count) {
+        return;
+    }
+    indices[index] = index;
+}
+
+/// Compute the index of the first (by index) enclosing cell for each particle.
+__global__
+void initialize_particle_cell_indices(
+    const float *pos_x, const float *pos_y, const size_t particle_count,
+    int *cell_indices, const int3 grid_dimensions, const int cell_size
+) {
+    const auto particle_index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (particle_index >= particle_count) {
+        return;
+    }
+    // Position in world coordinates.
+    const auto position = float3{
+        pos_x[particle_index], pos_y[particle_index], 0
+    };
+    // Position in grid coordinates.
+    const auto [ u, v, w ] = cell_coordinates(position, cell_size);
+    // 2D indices of first enclosing cell, by first meaning the one with lowest
+    // index, i.e., closest to the origin.
+    const auto i = static_cast<int>(floor(u));
+    const auto j = static_cast<int>(floor(v));
+
+    cell_indices[particle_index] = i + j * grid_dimensions.x;
+}
+
+__global__
+void initialize_kernel_data(
+    const size_t particle_count, const int *cell_indices,
+    int *particle_indices_rel_cell, int *particle_count_per_cell
+) {
+
+}
+
+__global__
+void charge_density_global_2d(
+    const float *pos_x, const float *pos_y, const size_t particle_count,
+    float particle_charge, float *densities, const int3 grid_dimensions,
+    const int cell_size
+) {
     const auto index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= particle_count) {
         return;
@@ -197,10 +266,9 @@ void charge_density_global_2d(const float *pos_x, const float *pos_y,
     const auto position = float3{ pos_x[index], pos_y[index], 0 };
     const auto [ u, v, w ] = cell_coordinates(position, cell_size);
 
-    // Center of surrounding cell closest to the origin.
+    // 2D index, or center of surrounding cell closest to the origin.
     const auto i = static_cast<int>(floor(u));
     const auto j = static_cast<int>(floor(v));
-    const auto k = static_cast<int>(floor(w));
 
     // Centers of all surrounding cells, named relative the indices (i,j,k) of
     // the surrounding cell closest to the origin (cell_000).
@@ -234,6 +302,92 @@ void charge_density_global_2d(const float *pos_x, const float *pos_y,
     atomicAdd(&densities[cell_110_index], particle_charge * cell_110_weight);
 }
 
+__global__
+void charge_density_shared_2d(
+    const float *pos_x, const float *pos_y, const size_t particle_count,
+    float particle_charge, float *densities, const int3 grid_dimensions,
+    const int cell_size, int *particle_indices, int * particle_cell_indices,
+    int *particle_indices_rel_cell, int *particle_count_per_cell
+) {
+    const auto index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= particle_count) {
+        return;
+    }
+
+    // Each particle will contribute to its 4 surrounding cells.
+    __shared__ float s_densities[4][block_size];
+
+    // 1D index of first enclosing cell, i.e., with lowest index.
+    const auto first_cell_index = particle_cell_indices[index];
+    const auto particle_index = particle_indices[index];
+    const auto particle_index_rel_cell = particle_indices_rel_cell[index];
+    const auto cell_particle_count = particle_count_per_cell[index];
+
+    // Convert 1D index to 2D.
+    const auto i = first_cell_index % grid_dimensions.x;
+    const auto j = first_cell_index / grid_dimensions.x;
+
+    // Centers of all surrounding cells, named relative the indices (i,j,k) of
+    // the surrounding cell closest to the origin (cell_000).
+    const auto cell_000_center = int3{ i,     j    , 0 };
+    const auto cell_100_center = int3{ i + 1, j    , 0 };
+    const auto cell_010_center = int3{ i,     j + 1, 0 };
+    const auto cell_110_center = int3{ i + 1, j + 1, 0 };
+
+    const auto position = float3{
+        pos_x[particle_index], pos_y[particle_index], 0
+    };
+    const auto [ u, v, w ] = cell_coordinates(position, cell_size);
+    // uvw-position relative to cell_000.
+    const auto pos_rel_cell = float3{
+        u - cell_000_center.x,
+        v - cell_000_center.y,
+        w - cell_000_center.z
+    };
+    // Cell weights based on the distance to the particle.
+    const auto cell_000_weight = (1 - pos_rel_cell.x) * (1 - pos_rel_cell.y);
+    const auto cell_100_weight =      pos_rel_cell.x  * (1 - pos_rel_cell.y);
+    const auto cell_010_weight = (1 - pos_rel_cell.x) *      pos_rel_cell.y;
+    const auto cell_110_weight =      pos_rel_cell.x  *      pos_rel_cell.y;
+
+    // Linear cell indices.
+    const auto cell_000_index = cell_index(cell_000_center, grid_dimensions);
+    const auto cell_100_index = cell_index(cell_100_center, grid_dimensions);
+    const auto cell_010_index = cell_index(cell_010_center, grid_dimensions);
+    const auto cell_110_index = cell_index(cell_110_center, grid_dimensions);
+
+    // Weighted sum of the particle's charge.
+    s_densities[0][threadIdx.x] = particle_charge * cell_000_weight;
+    s_densities[1][threadIdx.x] = particle_charge * cell_100_weight;
+    s_densities[2][threadIdx.x] = particle_charge * cell_010_weight;
+    s_densities[3][threadIdx.x] = particle_charge * cell_110_weight;
+    // Wait until the shared memory is filled.
+    __syncthreads();
+
+    // In-place reduction in shared memory.
+    for (auto stride = ceil_pow2(cell_particle_count) / 2; stride > 0; stride /= 2) {
+        // Shorthand notation.
+        const auto i = particle_index_rel_cell;
+        // Make sure not to stride outside of the cell range. Crucial when
+        // the number of particles in a cell isn't a power of two.
+        if (i < stride && i + stride < cell_particle_count) {
+            s_densities[0][threadIdx.x] += s_densities[0][threadIdx.x + stride];
+            s_densities[1][threadIdx.x] += s_densities[1][threadIdx.x + stride];
+            s_densities[2][threadIdx.x] += s_densities[2][threadIdx.x + stride];
+            s_densities[3][threadIdx.x] += s_densities[3][threadIdx.x + stride];
+        }
+        __syncthreads();
+    }
+
+    // Store reduction to global memory.
+    if (particle_index_rel_cell == 0) {
+        atomicAdd(&densities[cell_000_index], s_densities[0][threadIdx.x]);
+        atomicAdd(&densities[cell_100_index], s_densities[1][threadIdx.x]);
+        atomicAdd(&densities[cell_010_index], s_densities[2][threadIdx.x]);
+        atomicAdd(&densities[cell_110_index], s_densities[3][threadIdx.x]);
+    }
+}
+
 int main(int argc, char *argv[]) {
     using namespace amitis;
 
@@ -242,9 +396,9 @@ int main(int argc, char *argv[]) {
     // Number of outside layers of ghost cells.
     const auto ghost_layer_count = 1;
 
-    if (argc < 7) {
+    if (argc < 8) {
         std::cerr << "Usage: master_thesis dim_x dim_y dim_z cell_size"
-            " particles/cell output_directory\n";
+            " particles/cell output_directory version\n";
         return 1;
     }
 
@@ -255,7 +409,8 @@ int main(int argc, char *argv[]) {
     };
     const auto cell_size = std::stoi(argv[4]);
     const auto particles_per_cell = std::stoi(argv[5]);
-    const auto output_directory_name = argv[6];
+    const auto selected_version = Version{ std::stoi(argv[6]) };
+    const auto output_directory_name = argv[7];
 
     // The complete grid includes ghost layers around the simulation grid.
     const auto grid_dimensions = int3{
@@ -270,23 +425,95 @@ int main(int argc, char *argv[]) {
         simulation_dimensions, cell_size, particles_per_cell, particle_charge
     );
     auto d_particles = DeviceParticles{ h_particles };
-
-    std::cout << h_particles.pos_x.size() << " particles generated.\n";
-
     d_particles.copy(h_particles);
+    std::cout << h_particles.pos_x.size() << " particles generated.\n";
+    const auto particle_count = h_particles.pos_x.size();
+
     // Initialize grid.
     auto h_charge_densities = HostGrid{ grid_dimensions };
     auto d_charge_densities = DeviceGrid{ grid_dimensions };
 
-    // Run kernel.
-    const auto particle_count = h_particles.pos_x.size();
-    // XXX: Hardcoded block_size.
-    const auto block_size = 128;
+    // Kernel block settings.
     const auto block_count = (particle_count + block_size - 1) / block_size;
-    charge_density_global_2d<<<block_count, block_size>>>(
-        d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
-        d_charge_densities.cells, grid_dimensions, cell_size
+
+/* -------------------------------------------------------------------------- */
+    auto h_particle_indices_before = HostIntArray{ particle_count };
+    auto h_particle_indices_after = HostIntArray{ particle_count };
+    auto d_particle_indices_before = DeviceIntArray{ h_particle_indices_before };
+    auto d_particle_indices_after = DeviceIntArray{ h_particle_indices_after };
+
+    auto h_cell_indices_before = HostIntArray{ particle_count };
+    auto h_cell_indices_after = HostIntArray{ particle_count };
+    auto d_cell_indices_before = DeviceIntArray{ h_cell_indices_before };
+    auto d_cell_indices_after = DeviceIntArray{ h_cell_indices_after };
+
+    auto h_particle_indices_rel_cell = HostIntArray{ particle_count };
+    auto h_particle_count_per_cell = HostIntArray{ particle_count };
+    auto d_particle_indices_rel_cell = DeviceIntArray{ h_particle_indices_rel_cell };
+    auto d_particle_count_per_cell = DeviceIntArray{ h_particle_count_per_cell };
+/* Initialize radix sort ---------------------------------------------------- */
+    // Initialize radix sort.
+    // Temporary storage used by radix sort.
+    void *d_sort_storage = nullptr;
+    auto sort_storage_byte_count = size_t{};
+    // Run the sorting with uninitialized temporary storage to compute the
+    // required temporary storage size.
+    cub::DeviceRadixSort::SortPairs(
+        d_sort_storage, sort_storage_byte_count,
+        d_cell_indices_before.i, d_cell_indices_after.i,
+        d_particle_indices_before.i, d_particle_indices_after.i,
+        particle_count
     );
+    // Allocate temporary storage.
+    cudaMalloc(&d_sort_storage, sort_storage_byte_count);
+/* Initialize particle indices ---------------------------------------------- */
+    initialize_indices<<<block_count, block_size>>>(
+        d_particle_indices_before.i, particle_count
+    );
+/* Get cell index per particle ---------------------------------------------- */
+    // Initialize particle cell indices.
+    initialize_particle_cell_indices<<<block_count, block_size>>>(
+        d_particles.pos_x, d_particles.pos_y, particle_count,
+        d_cell_indices_before.i, grid_dimensions, cell_size
+    );
+
+/* // Sort particle indices by cell. ---------------------------------------- */
+    // Sort particle indices by cell.
+    cub::DeviceRadixSort::SortPairs(
+        d_sort_storage, sort_storage_byte_count,
+        d_cell_indices_before.i, d_cell_indices_after.i,
+        d_particle_indices_before.i, d_particle_indices_after.i,
+        particle_count
+    );
+/* Initialize kernel data --------------------------------------------------- */
+    // Initialize kernel data.
+    initialize_kernel_data<<<block_count, block_size>>>(
+        particle_count, d_cell_indices_after.i, d_particle_indices_rel_cell.i,
+        d_particle_count_per_cell.i
+    );
+/* -------------------------------------------------------------------------- */
+
+    // Run kernel.
+    switch (selected_version) {
+    case Version::global:
+        charge_density_global_2d<<<block_count, block_size>>>(
+            d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
+            d_charge_densities.cells, grid_dimensions, cell_size
+        );
+        break;
+    case Version::shared:
+        charge_density_shared_2d<<<block_count, block_size>>>(
+            d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
+            d_charge_densities.cells, grid_dimensions, cell_size,
+            d_particle_indices_after.i, d_cell_indices_after.i,
+            d_particle_indices_rel_cell.i, d_particle_count_per_cell.i
+        );
+        break;
+    
+    default:
+        std::cerr << "Unsupported version number.\n";
+        return 1;
+    }
 
     // Copy data from the device to the host.
     h_particles.copy(d_particles);
@@ -296,5 +523,18 @@ int main(int argc, char *argv[]) {
     const auto output_directory = std::filesystem::path(output_directory_name);
     std::filesystem::create_directory(output_directory);
     h_particles.save_positions(output_directory / "positions.csv");
-    h_charge_densities.save(output_directory / "charge_densities.csv");
+    const auto densities_filename = ([selected_version](){
+        auto filename = std::string("charge_densities");
+        switch (selected_version) {
+        case Version::global:
+            filename += "_global";
+            break;
+        case Version::shared:
+            filename += "_shared";
+            break;
+        }
+        filename += ".csv";
+        return filename;
+    })();
+    h_charge_densities.save(output_directory / densities_filename);
 }
