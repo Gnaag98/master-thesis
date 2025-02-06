@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <string>
 #include <vector>
 
 #include <cub/device/device_radix_sort.cuh>
@@ -9,6 +10,11 @@
 #include "grid.cuh"
 #include "int_array.cuh"
 #include "particles.cuh"
+
+enum class Version {
+    global = 0,
+    shared
+};
 
 const auto random_seed = 1u;
 // XXX: Hardcoded block_size.
@@ -390,9 +396,9 @@ int main(int argc, char *argv[]) {
     // Number of outside layers of ghost cells.
     const auto ghost_layer_count = 1;
 
-    if (argc < 7) {
+    if (argc < 8) {
         std::cerr << "Usage: master_thesis dim_x dim_y dim_z cell_size"
-            " particles/cell output_directory\n";
+            " particles/cell output_directory version\n";
         return 1;
     }
 
@@ -403,7 +409,8 @@ int main(int argc, char *argv[]) {
     };
     const auto cell_size = std::stoi(argv[4]);
     const auto particles_per_cell = std::stoi(argv[5]);
-    const auto output_directory_name = argv[6];
+    const auto selected_version = Version{ std::stoi(argv[6]) };
+    const auto output_directory_name = argv[7];
 
     // The complete grid includes ghost layers around the simulation grid.
     const auto grid_dimensions = int3{
@@ -487,33 +494,47 @@ int main(int argc, char *argv[]) {
 /* -------------------------------------------------------------------------- */
 
     // Run kernel.
-    /*
-    charge_density_global_2d<<<block_count, block_size>>>(
-        d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
-        d_charge_densities.cells, grid_dimensions, cell_size
-    );
-    //**/
-
-    //*
-    charge_density_shared_2d<<<block_count, block_size>>>(
-        d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
-        d_charge_densities.cells, grid_dimensions, cell_size,
-        d_particle_indices_after.i, d_cell_indices_after.i,
-        d_particle_indices_rel_cell.i, d_particle_count_per_cell.i
-    );
-    //*/
+    switch (selected_version) {
+    case Version::global:
+        charge_density_global_2d<<<block_count, block_size>>>(
+            d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
+            d_charge_densities.cells, grid_dimensions, cell_size
+        );
+        break;
+    case Version::shared:
+        charge_density_shared_2d<<<block_count, block_size>>>(
+            d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
+            d_charge_densities.cells, grid_dimensions, cell_size,
+            d_particle_indices_after.i, d_cell_indices_after.i,
+            d_particle_indices_rel_cell.i, d_particle_count_per_cell.i
+        );
+        break;
+    
+    default:
+        std::cerr << "Unsupported version number.\n";
+        return 1;
+    }
 
     // Copy data from the device to the host.
     h_particles.copy(d_particles);
     h_charge_densities.copy(d_charge_densities);
-    h_particle_indices_after.copy(d_particle_indices_after);
-    h_cell_indices_after.copy(d_cell_indices_after);
 
     // Save data to disk.
     const auto output_directory = std::filesystem::path(output_directory_name);
     std::filesystem::create_directory(output_directory);
     h_particles.save_positions(output_directory / "positions.csv");
-    h_charge_densities.save(output_directory / "charge_densities.csv");
-    /* h_particle_indices_after.save(output_directory / "particle_indices_after.csv");
-    h_cell_indices_after.save(output_directory / "cell_indices_after.csv"); */
+    const auto densities_filename = ([selected_version](){
+        auto filename = std::string("charge_densities");
+        switch (selected_version) {
+        case Version::global:
+            filename += "_global";
+            break;
+        case Version::shared:
+            filename += "_shared";
+            break;
+        }
+        filename += ".csv";
+        return filename;
+    })();
+    h_charge_densities.save(output_directory / densities_filename);
 }
