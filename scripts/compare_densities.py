@@ -1,5 +1,5 @@
+import argparse
 import csv
-from math import floor
 from pathlib import Path
 
 from matplotlib.patches import Rectangle
@@ -7,9 +7,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def main():
+    # Parse command line arguments.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('dim_x', type=int)
+    parser.add_argument('dim_y', type=int)
+    args = parser.parse_args()
     # Grid parameters with ghost cells included.
-    grid_size_x = 32+2
-    grid_size_y = 16+2
+    grid_size_x = args.dim_x + 2
+    grid_size_y = args.dim_y + 2
 
     # maximum allowed error.
     tolerance = 0.001
