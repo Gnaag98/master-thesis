@@ -13,7 +13,7 @@
 #include "int_array.cuh"
 #include "particles.cuh"
 
-#define DEBUG
+//#define DEBUG
 
 enum class Version {
     global = 0,
