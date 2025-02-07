@@ -16,13 +16,13 @@ enum class Version {
     shared
 };
 
-const auto random_seed = 1u;
 // XXX: Hardcoded block_size.
 const auto block_size = 128;
 
 auto generate_particles_from_2d_pattern(
     const int3 simulation_dimensions, const int cell_size,
-    const int particles_per_cell, const float particle_charge
+    const int particles_per_cell, const float particle_charge,
+    const int random_seed
 ) {
     /* 
      * The simulation box will be split into four zones that determine the
@@ -137,7 +137,8 @@ auto generate_particles_from_2d_pattern(
 
 auto generate_particles(
     const int3 simulation_dimensions, const int cell_size,
-    const int particles_per_cell, const float particle_charge
+    const int particles_per_cell, const float particle_charge,
+    const int random_seed
 ) -> amitis::HostParticles {
     auto random_engine = std::default_random_engine(random_seed);
     auto distribution_x = std::uniform_real_distribution<float>(
@@ -397,8 +398,8 @@ int main(int argc, char *argv[]) {
     const auto ghost_layer_count = 1;
 
     if (argc < 8) {
-        std::cerr << "Usage: master_thesis dim_x dim_y dim_z cell_size"
-            " particles/cell output_directory version\n";
+        std::cerr << "Usage: "<< argv[0] << " dim_x dim_y dim_z cell_size"
+            " particles/cell version output_directory [seed]\n";
         return 1;
     }
 
@@ -411,6 +412,7 @@ int main(int argc, char *argv[]) {
     const auto particles_per_cell = std::stoi(argv[5]);
     const auto selected_version = Version{ std::stoi(argv[6]) };
     const auto output_directory_name = argv[7];
+    const auto random_seed = argc > 8 ? std::stoi(argv[8]) : 1;
 
     // The complete grid includes ghost layers around the simulation grid.
     const auto grid_dimensions = int3{
@@ -422,7 +424,8 @@ int main(int argc, char *argv[]) {
     // Initialize particles.
     /* auto h_particles = generate_particles( */
     auto h_particles = generate_particles_from_2d_pattern(
-        simulation_dimensions, cell_size, particles_per_cell, particle_charge
+        simulation_dimensions, cell_size, particles_per_cell, particle_charge,
+        random_seed
     );
     auto d_particles = DeviceParticles{ h_particles };
     d_particles.copy(h_particles);
