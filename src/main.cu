@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -31,6 +32,15 @@ const auto block_size = 128;
 const auto block_size = 1;
 #endif
 
+/// Return all indices in the range [0, count - 1) in random order.
+auto get_shuffled_indices(const int count, const int random_seed) {
+    auto random_engine = std::default_random_engine(random_seed);
+    auto indices = std::vector<int>(count);
+    std::iota(indices.begin(), indices.end(), 0);
+    std::shuffle(indices.begin(), indices.end(), random_engine);
+    return indices;
+}
+
 auto generate_particles_uniformly(
     const int3 simulation_dimensions, const int cell_size,
     const int particles_per_cell, const float particle_charge,
@@ -51,8 +61,10 @@ auto generate_particles_uniformly(
                                                    * simulation_dimensions.y
                                                    * simulation_dimensions.z;
     auto particles = amitis::HostParticles{ particle_count, particle_charge };
-
-    auto particle_index = 0;
+    const auto particle_indices = get_shuffled_indices(
+        particle_count, random_seed
+    );
+    auto indirect_particle_index = 0;
     for (auto k = 0; k < simulation_dimensions.z; ++k) {
         const auto z_offset = k * cell_size;
         for (auto j = 0; j < simulation_dimensions.y; ++j) {
@@ -60,13 +72,14 @@ auto generate_particles_uniformly(
             for (auto i = 0; i < simulation_dimensions.x; ++i) {
                 const auto x_offset = i * cell_size;
                 for (auto p = 0; p < particles_per_cell; ++p) {
+                    const auto particle_index = particle_indices[indirect_particle_index];
                     particles.pos_x[particle_index] = x_offset
                         + distribution_x(random_engine);
                     particles.pos_y[particle_index] = y_offset
                         + distribution_y(random_engine);
                     particles.pos_z[particle_index] = z_offset
                         + distribution_z(random_engine);
-                    ++particle_index;
+                    ++indirect_particle_index;
                 }
             }
         }
@@ -171,7 +184,10 @@ auto generate_particles_from_2d_pattern(
         0, cell_size
     );
     auto particles = amitis::HostParticles{ particle_count, particle_charge };
-    auto particle_index = 0;
+    const auto particle_indices = get_shuffled_indices(
+        particle_count, random_seed
+    );
+    auto indirect_particle_index = 0;
     for (auto j = 0; j < J; ++j) {
         const auto y_offset = j * cell_size;
         for (auto i = 0; i < I; ++i) {
@@ -179,11 +195,12 @@ auto generate_particles_from_2d_pattern(
             const auto cell_index = i + j * I;
             const auto cell_particle_count = particle_densities[cell_index];
             for (auto p = 0; p < cell_particle_count; ++p) {
+                const auto particle_index = particle_indices[indirect_particle_index];
                 particles.pos_x[particle_index] = x_offset
                     + position_distribution(random_engine);
                 particles.pos_y[particle_index] = y_offset
                     + position_distribution(random_engine);
-                ++particle_index;
+                ++indirect_particle_index;
             }
         }
     }
