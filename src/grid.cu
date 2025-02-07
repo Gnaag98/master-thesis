@@ -13,7 +13,7 @@ void amitis::HostGrid::copy(const DeviceGrid &grid) {
 
 void amitis::HostGrid::save(std::filesystem::path filepath) {
     auto file = std::ofstream{ filepath };
-    for (const auto cell : cells) { file << cell << ','; }
+    for (const auto cell : cells) { file << std::setprecision(15) << cell << ','; }
     file << '\n';
 }
 

@@ -47,13 +47,7 @@ auto generate_particles_uniformly(
     const int random_seed
 ) -> amitis::HostParticles {
     auto random_engine = std::default_random_engine(random_seed);
-    auto distribution_x = std::uniform_real_distribution<float>(
-        0, cell_size
-    );
-    auto distribution_y = std::uniform_real_distribution<float>(
-        0, cell_size
-    );
-    auto distribution_z = std::uniform_real_distribution<float>(
+    auto position_distribution = std::uniform_real_distribution<float>(
         0, cell_size
     );
 
@@ -74,11 +68,11 @@ auto generate_particles_uniformly(
                 for (auto p = 0; p < particles_per_cell; ++p) {
                     const auto particle_index = particle_indices[indirect_particle_index];
                     particles.pos_x[particle_index] = x_offset
-                        + distribution_x(random_engine);
+                        + position_distribution(random_engine);
                     particles.pos_y[particle_index] = y_offset
-                        + distribution_y(random_engine);
+                        + position_distribution(random_engine);
                     particles.pos_z[particle_index] = z_offset
-                        + distribution_z(random_engine);
+                        + position_distribution(random_engine);
                     ++indirect_particle_index;
                 }
             }
@@ -309,7 +303,56 @@ void initialize_kernel_data(
     const size_t particle_count, const int *cell_indices,
     int *particle_indices_rel_cell, int *particle_count_per_cell
 ) {
+    // Grid-stride loop. Equivalent to regular if-statement grid is large enough
+    // to cover all iterations of the loop.
+    for (
+        auto index = blockIdx.x * blockDim.x + threadIdx.x;
+        index < particle_count;
+        index += blockDim.x * gridDim.x
+    ) {
+        __shared__ int s_cell_indices[block_size];
+        __shared__ int s_particle_indices_rel_cell[block_size];
+        // Incrementing 0, 1, 2, ..., for each new cell.
+        __shared__ uint s_cell_ids[block_size];
+        // Indexed with cell id, not cell index.
+        __shared__ uint s_particle_count_per_cell_id[block_size];
 
+        s_cell_indices[threadIdx.x] = cell_indices[index];
+        __syncthreads();
+
+        // TODO: Parallelize.
+        if (threadIdx.x == 0) {
+            s_particle_indices_rel_cell[0] = 0;
+            s_cell_ids[0] = 0;
+            // Start on 1 since we already set the value for i = 0.
+            auto particle_index_rel_cell = 1;
+            auto cell_id = 0;
+            auto cell_particle_count = 0;
+            auto previous_cell_index = s_cell_indices[0];
+            // Don't iterate too far in the last block.
+            const auto block_particle_count = min(
+                particle_count - index, static_cast<size_t>(block_size)
+            );
+            for (auto i = 1uz; i < block_particle_count; ++i) {
+                const auto cell_index = s_cell_indices[i];
+                ++cell_particle_count;
+                if (cell_index > previous_cell_index) {
+                    s_particle_count_per_cell_id[cell_id] = cell_particle_count;
+                    particle_index_rel_cell = 0;
+                    ++cell_id;
+                    cell_particle_count = 0;
+                    previous_cell_index = cell_index;
+                }
+                s_particle_indices_rel_cell[i] = particle_index_rel_cell++;
+                s_cell_ids[i] = cell_id;
+            }
+            s_particle_count_per_cell_id[cell_id] = cell_particle_count + 1;
+        }
+        __syncthreads();
+        particle_indices_rel_cell[index] = s_particle_indices_rel_cell[threadIdx.x];
+        const auto cell_index = s_cell_ids[threadIdx.x];
+        particle_count_per_cell[index] = s_particle_count_per_cell_id[cell_index];
+    }
 }
 
 __global__
