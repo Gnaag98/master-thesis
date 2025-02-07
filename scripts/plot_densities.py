@@ -11,11 +11,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('dim_x', type=int)
     parser.add_argument('dim_y', type=int)
+    parser.add_argument('filename')
     args = parser.parse_args()
     # Grid parameters with ghost cells included.
     cell_size = 64
     grid_size_x = args.dim_x + 2
     grid_size_y = args.dim_y + 2
+
+    densities_filename = args.filename
 
     # Output directory relative to this file.
     scripts_directory = Path(__file__).parent
@@ -29,7 +32,7 @@ def main():
     x = [x / cell_size for x in positions[0]]
     y = [y / cell_size for y in positions[1]]
     # Get charge densities.
-    with open(output_directory / 'charge_densities.csv') as file:
+    with open(output_directory / densities_filename) as file:
         reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
         densities = np.array([row[:-1] for row in reader][0])
     densities = densities[0:grid_size_x*grid_size_y]

@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -11,11 +12,16 @@
 #include "int_array.cuh"
 #include "particles.cuh"
 
-//#define DEBUG
+#define DEBUG
 
 enum class Version {
     global = 0,
     shared
+};
+
+enum class ParticleDistribution {
+    uniform,
+    pattern_2d
 };
 
 // XXX: Hardcoded block_size.
@@ -24,6 +30,50 @@ const auto block_size = 128;
 #else
 const auto block_size = 1;
 #endif
+
+auto generate_particles_uniformly(
+    const int3 simulation_dimensions, const int cell_size,
+    const int particles_per_cell, const float particle_charge,
+    const int random_seed
+) -> amitis::HostParticles {
+    auto random_engine = std::default_random_engine(random_seed);
+    auto distribution_x = std::uniform_real_distribution<float>(
+        0, cell_size
+    );
+    auto distribution_y = std::uniform_real_distribution<float>(
+        0, cell_size
+    );
+    auto distribution_z = std::uniform_real_distribution<float>(
+        0, cell_size
+    );
+
+    const auto particle_count = particles_per_cell * simulation_dimensions.x
+                                                   * simulation_dimensions.y
+                                                   * simulation_dimensions.z;
+    auto particles = amitis::HostParticles{ particle_count, particle_charge };
+
+    auto particle_index = 0;
+    for (auto k = 0; k < simulation_dimensions.z; ++k) {
+        const auto z_offset = k * cell_size;
+        for (auto j = 0; j < simulation_dimensions.y; ++j) {
+            const auto y_offset = j * cell_size;
+            for (auto i = 0; i < simulation_dimensions.x; ++i) {
+                const auto x_offset = i * cell_size;
+                for (auto p = 0; p < particles_per_cell; ++p) {
+                    particles.pos_x[particle_index] = x_offset
+                        + distribution_x(random_engine);
+                    particles.pos_y[particle_index] = y_offset
+                        + distribution_y(random_engine);
+                    particles.pos_z[particle_index] = z_offset
+                        + distribution_z(random_engine);
+                    ++particle_index;
+                }
+            }
+        }
+    }
+
+    return particles;
+}
 
 auto generate_particles_from_2d_pattern(
     const int3 simulation_dimensions, const int cell_size,
@@ -141,48 +191,26 @@ auto generate_particles_from_2d_pattern(
     return particles;
 }
 
-auto generate_particles(
+auto generate_particles (
     const int3 simulation_dimensions, const int cell_size,
     const int particles_per_cell, const float particle_charge,
-    const int random_seed
+    const int random_seed, const ParticleDistribution distribution
 ) -> amitis::HostParticles {
-    auto random_engine = std::default_random_engine(random_seed);
-    auto distribution_x = std::uniform_real_distribution<float>(
-        0, cell_size
-    );
-    auto distribution_y = std::uniform_real_distribution<float>(
-        0, cell_size
-    );
-    auto distribution_z = std::uniform_real_distribution<float>(
-        0, cell_size
-    );
-
-    const auto particle_count = particles_per_cell * simulation_dimensions.x
-                                                   * simulation_dimensions.y
-                                                   * simulation_dimensions.z;
-    auto particles = amitis::HostParticles{ particle_count, particle_charge };
-
-    auto particle_index = 0;
-    for (auto k = 0; k < simulation_dimensions.z; ++k) {
-        const auto z_offset = k * cell_size;
-        for (auto j = 0; j < simulation_dimensions.y; ++j) {
-            const auto y_offset = j * cell_size;
-            for (auto i = 0; i < simulation_dimensions.x; ++i) {
-                const auto x_offset = i * cell_size;
-                for (auto p = 0; p < particles_per_cell; ++p) {
-                    particles.pos_x[particle_index] = x_offset
-                        + distribution_x(random_engine);
-                    particles.pos_y[particle_index] = y_offset
-                        + distribution_y(random_engine);
-                    particles.pos_z[particle_index] = z_offset
-                        + distribution_z(random_engine);
-                    ++particle_index;
-                }
-            }
-        }
+    switch (distribution) {
+    case ParticleDistribution::uniform:
+        return generate_particles_uniformly(
+            simulation_dimensions, cell_size, particles_per_cell,
+            particle_charge, random_seed
+        );
+    case ParticleDistribution::pattern_2d:
+        return generate_particles_from_2d_pattern(
+            simulation_dimensions, cell_size, particles_per_cell,
+            particle_charge, random_seed
+        );
+    
+    default:
+        throw std::runtime_error("Unhandled particle distribution enum option");
     }
-
-    return particles;
 }
 
 constexpr auto cell_coordinates(const float3 position, const int cell_size) {
@@ -422,8 +450,9 @@ int main(int argc, char *argv[]) {
     const auto ghost_layer_count = 1;
 
     if (argc < 8) {
-        std::cerr << "Usage: "<< argv[0] << " dim_x dim_y dim_z cell_size"
-            " particles/cell version output_directory [seed]\n";
+        std::cerr << "Usage: "<< argv[0] <<
+            " dim_x dim_y dim_z cell_size particles/cell version"
+            " output_directory [particle_distribution] [seed]\n";
         return 1;
     }
 
@@ -436,7 +465,10 @@ int main(int argc, char *argv[]) {
     const auto particles_per_cell = std::stoi(argv[5]);
     const auto selected_version = Version{ std::stoi(argv[6]) };
     const auto output_directory_name = argv[7];
-    const auto random_seed = argc > 8 ? std::stoi(argv[8]) : 1;
+    const auto particle_distribution = argc > 8
+        ? ParticleDistribution{ std::stoi(argv[8]) }
+        : ParticleDistribution::pattern_2d;
+    const auto random_seed = argc > 9 ? std::stoi(argv[9]) : 1;
 
     // The complete grid includes ghost layers around the simulation grid.
     const auto grid_dimensions = int3{
@@ -446,10 +478,9 @@ int main(int argc, char *argv[]) {
     };
 
     // Initialize particles.
-    /* auto h_particles = generate_particles( */
-    auto h_particles = generate_particles_from_2d_pattern(
+    auto h_particles = generate_particles(
         simulation_dimensions, cell_size, particles_per_cell, particle_charge,
-        random_seed
+        random_seed, particle_distribution
     );
     auto d_particles = DeviceParticles{ h_particles };
     d_particles.copy(h_particles);
