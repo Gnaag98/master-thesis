@@ -1,10 +1,10 @@
-#ifndef AMITIS_INDICES_HPP
-#define AMITIS_INDICES_HPP
+#ifndef THESIS_INDICES_HPP
+#define THESIS_INDICES_HPP
 
 #include <filesystem>
 #include <vector>
 
-namespace amitis {
+namespace thesis {
     struct DeviceIntArray;
     
     struct HostIntArray {

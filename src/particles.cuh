@@ -1,10 +1,10 @@
-#ifndef AMITIS_PARTICLES_HPP
-#define AMITIS_PARTICLES_HPP
+#ifndef THESIS_PARTICLES_HPP
+#define THESIS_PARTICLES_HPP
 
 #include <filesystem>
 #include <vector>
 
-namespace amitis {
+namespace thesis {
     struct DeviceParticles;
     
     struct HostParticles {

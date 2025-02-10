@@ -45,7 +45,7 @@ auto generate_particles_uniformly(
     const int3 simulation_dimensions, const int cell_size,
     const int particles_per_cell, const float particle_charge,
     const int random_seed
-) -> amitis::HostParticles {
+) -> thesis::HostParticles {
     auto random_engine = std::default_random_engine(random_seed);
     auto position_distribution = std::uniform_real_distribution<float>(
         0, cell_size
@@ -54,7 +54,7 @@ auto generate_particles_uniformly(
     const auto particle_count = particles_per_cell * simulation_dimensions.x
                                                    * simulation_dimensions.y
                                                    * simulation_dimensions.z;
-    auto particles = amitis::HostParticles{ particle_count, particle_charge };
+    auto particles = thesis::HostParticles{ particle_count, particle_charge };
     const auto particle_indices = get_shuffled_indices(
         particle_count, random_seed
     );
@@ -177,7 +177,7 @@ auto generate_particles_from_2d_pattern(
     auto position_distribution = std::uniform_real_distribution<float>(
         0, cell_size
     );
-    auto particles = amitis::HostParticles{ particle_count, particle_charge };
+    auto particles = thesis::HostParticles{ particle_count, particle_charge };
     const auto particle_indices = get_shuffled_indices(
         particle_count, random_seed
     );
@@ -206,7 +206,7 @@ auto generate_particles (
     const int3 simulation_dimensions, const int cell_size,
     const int particles_per_cell, const float particle_charge,
     const int random_seed, const ParticleDistribution distribution
-) -> amitis::HostParticles {
+) -> thesis::HostParticles {
     switch (distribution) {
     case ParticleDistribution::uniform:
         return generate_particles_uniformly(
@@ -502,7 +502,7 @@ void charge_density_shared_2d(
 }
 
 int main(int argc, char *argv[]) {
-    using namespace amitis;
+    using namespace thesis;
 
     // Unit charge.
     const auto particle_charge = 1.0f;

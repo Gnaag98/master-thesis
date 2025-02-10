@@ -2,32 +2,32 @@
 
 #include <fstream>
 
-amitis::HostGrid::HostGrid(const int3 dimensions)
+thesis::HostGrid::HostGrid(const int3 dimensions)
     : cells(dimensions.x * dimensions.y * dimensions.z),
       dimensions{ dimensions } {}
 
-void amitis::HostGrid::copy(const DeviceGrid &grid) {
+void thesis::HostGrid::copy(const DeviceGrid &grid) {
     const auto size = cells.size() * sizeof(float);
     cudaMemcpy(cells.data(), grid.cells, size, cudaMemcpyDeviceToHost);
 }
 
-void amitis::HostGrid::save(std::filesystem::path filepath) {
+void thesis::HostGrid::save(std::filesystem::path filepath) {
     auto file = std::ofstream{ filepath };
     for (const auto cell : cells) { file << std::setprecision(15) << cell << ','; }
     file << '\n';
 }
 
-amitis::DeviceGrid::DeviceGrid(const int3 dimensions)
+thesis::DeviceGrid::DeviceGrid(const int3 dimensions)
     : dimensions{ dimensions } {
     const auto cell_count = dimensions.x * dimensions.y * dimensions.z;
     cudaMalloc(&cells, cell_count * sizeof(float));
 }
 
-amitis::DeviceGrid::~DeviceGrid() {
+thesis::DeviceGrid::~DeviceGrid() {
     cudaFree(cells);
 }
 
-void amitis::DeviceGrid::copy(const HostGrid &grid) {
+void thesis::DeviceGrid::copy(const HostGrid &grid) {
     const auto size = grid.cells.size() * sizeof(float);
     cudaMemcpy(cells, grid.cells.data(), size, cudaMemcpyHostToDevice);
 }
