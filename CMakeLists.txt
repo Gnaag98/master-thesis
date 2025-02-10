@@ -9,6 +9,8 @@ add_executable(${PROJECT_NAME}
     src/grid.cuh
     src/int_array.cu
     src/int_array.cuh
+    src/particle_generation.cu
+    src/particle_generation.cuh
 )
 
 target_include_directories(${PROJECT_NAME}
