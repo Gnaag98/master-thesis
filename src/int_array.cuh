@@ -1,10 +1,10 @@
-#ifndef AMITIS_INDICES_HPP
-#define AMITIS_INDICES_HPP
+#ifndef THESIS_INDICES_CUH
+#define THESIS_INDICES_CUH
 
 #include <filesystem>
 #include <vector>
 
-namespace amitis {
+namespace thesis {
     struct DeviceIntArray;
     
     struct HostIntArray {
@@ -20,7 +20,7 @@ namespace amitis {
     struct DeviceIntArray {
         int *i;
 
-        // TODO: Allow device indices without corresponding host indices.
+        explicit DeviceIntArray(size_t count);
         DeviceIntArray(const HostIntArray &indices);
         DeviceIntArray(const DeviceIntArray &) = delete;
         ~DeviceIntArray();

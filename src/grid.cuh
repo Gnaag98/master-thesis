@@ -1,10 +1,10 @@
-#ifndef AMITIS_GRID_HPP
-#define AMITIS_GRID_HPP
+#ifndef THESIS_GRID_CUH
+#define THESIS_GRID_CUH
 
 #include <filesystem>
 #include <vector>
 
-namespace amitis {
+namespace thesis {
     struct DeviceGrid;
 
     struct HostGrid {
