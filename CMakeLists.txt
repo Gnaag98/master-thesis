@@ -3,6 +3,7 @@ project(master_thesis LANGUAGES CXX CUDA)
 
 add_executable(${PROJECT_NAME}
     src/main.cu
+    src/common.cuh
     src/particles.cu
     src/particles.cuh
     src/grid.cu
@@ -11,6 +12,10 @@ add_executable(${PROJECT_NAME}
     src/int_array.cuh
     src/particle_generation.cu
     src/particle_generation.cuh
+    src/charge_density_global_2d.cu
+    src/charge_density_global_2d.cuh
+    src/charge_density_shared_2d.cu
+    src/charge_density_shared_2d.cuh
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -23,3 +28,9 @@ target_compile_options(${PROJECT_NAME}
     PRIVATE -arch=sm_75
     PRIVATE --expt-relaxed-constexpr
 )
+
+##[[
+target_compile_definitions(${PROJECT_NAME}
+    PRIVATE DEBUG
+)
+#]]

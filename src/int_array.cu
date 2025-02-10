@@ -20,10 +20,13 @@ void thesis::HostIntArray::save(std::filesystem::path filepath) {
     file << '\n';
 }
 
-thesis::DeviceIntArray::DeviceIntArray(const HostIntArray &indices) {
-    const auto size = indices.i.size() * type_size;
+thesis::DeviceIntArray::DeviceIntArray(const size_t count) {
+    const auto size = count * type_size;
     cudaMalloc(&i, size);
 }
+
+thesis::DeviceIntArray::DeviceIntArray(const HostIntArray &indices)
+    : DeviceIntArray{ indices.i.size() } {}
 
 thesis::DeviceIntArray::~DeviceIntArray() {
     cudaFree(i);

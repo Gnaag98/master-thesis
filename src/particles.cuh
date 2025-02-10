@@ -1,5 +1,5 @@
-#ifndef THESIS_PARTICLES_HPP
-#define THESIS_PARTICLES_HPP
+#ifndef THESIS_PARTICLES_CUH
+#define THESIS_PARTICLES_CUH
 
 #include <filesystem>
 #include <vector>

@@ -4,303 +4,18 @@
 #include <stdexcept>
 #include <string>
 
-#include <cub/device/device_radix_sort.cuh>
-
+#include "charge_density_global_2d.cuh"
+#include "charge_density_shared_2d.cuh"
+#include "common.cuh"
 #include "grid.cuh"
 #include "int_array.cuh"
 #include "particles.cuh"
 #include "particle_generation.cuh"
 
-//#define DEBUG
-
 enum class Version {
     global = 0,
     shared
 };
-
-// XXX: Hardcoded block_size.
-#ifndef DEBUG
-const auto block_size = 128;
-#else
-const auto block_size = 1;
-#endif
-
-constexpr auto cell_coordinates(const float3 position, const int cell_size) {
-    // XXX: Hardcoded half-cell shift due to one layer of ghost cells.
-    return float3{
-        position.x / cell_size + 0.5f,
-        position.y / cell_size + 0.5f,
-        position.z / cell_size + 0.5f
-    };
-}
-
-constexpr auto cell_index(const int3 cell_center,
-        const int3 grid_dimensions) {
-    const auto i = cell_center.x;
-    const auto j = cell_center.y;
-    const auto k = cell_center.z;
-    return i + (j * grid_dimensions.x)
-             + (k * grid_dimensions.x * grid_dimensions.y);
-}
-
-/// https://graphics.stanford.edu/%7Eseander/bithacks.html#RoundUpPowerOf2
-constexpr
-auto ceil_pow2(const int number) -> int {
-    auto v = static_cast<uint32_t>(number);
-    v--;
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    v++;
-    v += v == 0;
-    return static_cast<int>(v);
-}
-
-__global__
-void initialize_indices(int *indices, const size_t particle_count) {
-    // Grid-stride loop. Equivalent to regular if-statement grid is large enough
-    // to cover all iterations of the loop.
-    for (
-        auto index = blockIdx.x * blockDim.x + threadIdx.x;
-        index < particle_count;
-        index += blockDim.x * gridDim.x
-    ) {
-    indices[index] = index;
-    }
-}
-
-/// Compute the index of the first (by index) enclosing cell for each particle.
-__global__
-void initialize_particle_cell_indices(
-    const float *pos_x, const float *pos_y, const size_t particle_count,
-    int *cell_indices, const int3 grid_dimensions, const int cell_size
-) {
-    // Grid-stride loop. Equivalent to regular if-statement grid is large enough
-    // to cover all iterations of the loop.
-    for (
-        auto particle_index = blockIdx.x * blockDim.x + threadIdx.x;
-        particle_index < particle_count;
-        particle_index += blockDim.x * gridDim.x
-    ) {
-        // Position in world coordinates.
-        const auto position = float3{
-            pos_x[particle_index], pos_y[particle_index], 0
-        };
-        // Position in grid coordinates.
-        const auto [ u, v, w ] = cell_coordinates(position, cell_size);
-        // 2D indices of first enclosing cell, by first meaning the one with
-        // lowest index, i.e., closest to the origin.
-        const auto i = static_cast<int>(floor(u));
-        const auto j = static_cast<int>(floor(v));
-
-        cell_indices[particle_index] = i + j * grid_dimensions.x;
-    }
-}
-
-__global__
-void initialize_kernel_data(
-    const size_t particle_count, const int *cell_indices,
-    int *particle_indices_rel_cell, int *particle_count_per_cell
-) {
-    // Grid-stride loop. Equivalent to regular if-statement grid is large enough
-    // to cover all iterations of the loop.
-    for (
-        auto index = blockIdx.x * blockDim.x + threadIdx.x;
-        index < particle_count;
-        index += blockDim.x * gridDim.x
-    ) {
-        __shared__ int s_cell_indices[block_size];
-        __shared__ int s_particle_indices_rel_cell[block_size];
-        // Incrementing 0, 1, 2, ..., for each new cell.
-        __shared__ uint s_cell_ids[block_size];
-        // Indexed with cell id, not cell index.
-        __shared__ uint s_particle_count_per_cell_id[block_size];
-
-        s_cell_indices[threadIdx.x] = cell_indices[index];
-        __syncthreads();
-
-        // TODO: Parallelize.
-        if (threadIdx.x == 0) {
-            s_particle_indices_rel_cell[0] = 0;
-            s_cell_ids[0] = 0;
-            // Start on 1 since we already set the value for i = 0.
-            auto particle_index_rel_cell = 1;
-            auto cell_id = 0;
-            auto cell_particle_count = 0;
-            auto previous_cell_index = s_cell_indices[0];
-            // Don't iterate too far in the last block.
-            const auto block_particle_count = min(
-                particle_count - index, static_cast<size_t>(block_size)
-            );
-            for (auto i = 1uz; i < block_particle_count; ++i) {
-                const auto cell_index = s_cell_indices[i];
-                ++cell_particle_count;
-                if (cell_index > previous_cell_index) {
-                    s_particle_count_per_cell_id[cell_id] = cell_particle_count;
-                    particle_index_rel_cell = 0;
-                    ++cell_id;
-                    cell_particle_count = 0;
-                    previous_cell_index = cell_index;
-                }
-                s_particle_indices_rel_cell[i] = particle_index_rel_cell++;
-                s_cell_ids[i] = cell_id;
-            }
-            s_particle_count_per_cell_id[cell_id] = cell_particle_count + 1;
-        }
-        __syncthreads();
-        particle_indices_rel_cell[index] = s_particle_indices_rel_cell[threadIdx.x];
-        const auto cell_index = s_cell_ids[threadIdx.x];
-        particle_count_per_cell[index] = s_particle_count_per_cell_id[cell_index];
-    }
-}
-
-__global__
-void charge_density_global_2d(
-    const float *pos_x, const float *pos_y, const size_t particle_count,
-    float particle_charge, float *densities, const int3 grid_dimensions,
-    const int cell_size
-) {
-    // Grid-stride loop. Equivalent to regular if-statement grid is large enough
-    // to cover all iterations of the loop.
-    for (
-        auto index = blockIdx.x * blockDim.x + threadIdx.x;
-        index < particle_count;
-        index += blockDim.x * gridDim.x
-    ) {
-        const auto position = float3{ pos_x[index], pos_y[index], 0 };
-        const auto [ u, v, w ] = cell_coordinates(position, cell_size);
-
-        // 2D index, or center of surrounding cell closest to the origin.
-        const auto i = static_cast<int>(floor(u));
-        const auto j = static_cast<int>(floor(v));
-
-        // Centers of all surrounding cells, named relative the indices (i,j,k)
-        // of the surrounding cell closest to the origin (cell_000).
-        const auto cell_000_center = int3{ i,     j    , 0 };
-        const auto cell_100_center = int3{ i + 1, j    , 0 };
-        const auto cell_010_center = int3{ i,     j + 1, 0 };
-        const auto cell_110_center = int3{ i + 1, j + 1, 0 };
-
-        // uvw-position relative to cell_000.
-        const auto pos_rel_cell = float3{
-            u - cell_000_center.x,
-            v - cell_000_center.y,
-            w - cell_000_center.z
-        };
-        // Cell weights based on the distance to the particle.
-        const auto cell_000_weight = (1 - pos_rel_cell.x) * (1 - pos_rel_cell.y);
-        const auto cell_100_weight =      pos_rel_cell.x  * (1 - pos_rel_cell.y);
-        const auto cell_010_weight = (1 - pos_rel_cell.x) *      pos_rel_cell.y;
-        const auto cell_110_weight =      pos_rel_cell.x  *      pos_rel_cell.y;
-
-        // Linear cell indices.
-        const auto cell_000_index = cell_index(cell_000_center, grid_dimensions);
-        const auto cell_100_index = cell_index(cell_100_center, grid_dimensions);
-        const auto cell_010_index = cell_index(cell_010_center, grid_dimensions);
-        const auto cell_110_index = cell_index(cell_110_center, grid_dimensions);
-
-        // Weighted sum of the particle's charge.
-        atomicAdd(&densities[cell_000_index], particle_charge * cell_000_weight);
-        atomicAdd(&densities[cell_100_index], particle_charge * cell_100_weight);
-        atomicAdd(&densities[cell_010_index], particle_charge * cell_010_weight);
-        atomicAdd(&densities[cell_110_index], particle_charge * cell_110_weight);
-    }
-}
-
-__global__
-void charge_density_shared_2d(
-    const float *pos_x, const float *pos_y, const size_t particle_count,
-    float particle_charge, float *densities, const int3 grid_dimensions,
-    const int cell_size, int *particle_indices, int * particle_cell_indices,
-    int *particle_indices_rel_cell, int *particle_count_per_cell
-) {
-    // Grid-stride loop. Equivalent to regular if-statement grid is large enough
-    // to cover all iterations of the loop.
-    for (
-        auto index = blockIdx.x * blockDim.x + threadIdx.x;
-        index < particle_count;
-        index += blockDim.x * gridDim.x
-    ) {
-        // Each particle will contribute to its 4 surrounding cells.
-        __shared__ float s_densities[4][block_size];
-
-        // 1D index of first enclosing cell, i.e., with lowest index.
-        const auto first_cell_index = particle_cell_indices[index];
-        const auto particle_index = particle_indices[index];
-        const auto particle_index_rel_cell = particle_indices_rel_cell[index];
-        const auto cell_particle_count = particle_count_per_cell[index];
-
-        // Convert 1D index to 2D.
-        const auto i = first_cell_index % grid_dimensions.x;
-        const auto j = first_cell_index / grid_dimensions.x;
-
-        // Centers of all surrounding cells, named relative the indices (i,j,k)
-        // of the surrounding cell closest to the origin (cell_000).
-        const auto cell_000_center = int3{ i,     j    , 0 };
-        const auto cell_100_center = int3{ i + 1, j    , 0 };
-        const auto cell_010_center = int3{ i,     j + 1, 0 };
-        const auto cell_110_center = int3{ i + 1, j + 1, 0 };
-
-        const auto position = float3{
-            pos_x[particle_index], pos_y[particle_index], 0
-        };
-        const auto [ u, v, w ] = cell_coordinates(position, cell_size);
-        // uvw-position relative to cell_000.
-        const auto pos_rel_cell = float3{
-            u - cell_000_center.x,
-            v - cell_000_center.y,
-            w - cell_000_center.z
-        };
-        // Cell weights based on the distance to the particle.
-        const auto cell_000_weight = (1 - pos_rel_cell.x) * (1 - pos_rel_cell.y);
-        const auto cell_100_weight =      pos_rel_cell.x  * (1 - pos_rel_cell.y);
-        const auto cell_010_weight = (1 - pos_rel_cell.x) *      pos_rel_cell.y;
-        const auto cell_110_weight =      pos_rel_cell.x  *      pos_rel_cell.y;
-
-        // Linear cell indices.
-        const auto cell_000_index = cell_index(cell_000_center, grid_dimensions);
-        const auto cell_100_index = cell_index(cell_100_center, grid_dimensions);
-        const auto cell_010_index = cell_index(cell_010_center, grid_dimensions);
-        const auto cell_110_index = cell_index(cell_110_center, grid_dimensions);
-
-        // Weighted sum of the particle's charge.
-        s_densities[0][threadIdx.x] = particle_charge * cell_000_weight;
-        s_densities[1][threadIdx.x] = particle_charge * cell_100_weight;
-        s_densities[2][threadIdx.x] = particle_charge * cell_010_weight;
-        s_densities[3][threadIdx.x] = particle_charge * cell_110_weight;
-        // Wait until the shared memory is filled.
-        __syncthreads();
-
-        // In-place reduction in shared memory.
-        for (
-            auto stride = ceil_pow2(cell_particle_count) / 2;
-            stride > 0;
-            stride /= 2
-        ) {
-            // Shorthand notation.
-            const auto i = particle_index_rel_cell;
-            // Make sure not to stride outside of the cell range. Crucial when
-            // the number of particles in a cell isn't a power of two.
-            if (i < stride && i + stride < cell_particle_count) {
-                s_densities[0][threadIdx.x] += s_densities[0][threadIdx.x + stride];
-                s_densities[1][threadIdx.x] += s_densities[1][threadIdx.x + stride];
-                s_densities[2][threadIdx.x] += s_densities[2][threadIdx.x + stride];
-                s_densities[3][threadIdx.x] += s_densities[3][threadIdx.x + stride];
-            }
-            __syncthreads();
-        }
-
-        // Store reduction to global memory.
-        if (particle_index_rel_cell == 0) {
-            atomicAdd(&densities[cell_000_index], s_densities[0][threadIdx.x]);
-            atomicAdd(&densities[cell_100_index], s_densities[1][threadIdx.x]);
-            atomicAdd(&densities[cell_010_index], s_densities[2][threadIdx.x]);
-            atomicAdd(&densities[cell_110_index], s_densities[3][threadIdx.x]);
-        }
-    }
-}
 
 int main(int argc, char *argv[]) {
     using namespace thesis;
@@ -359,80 +74,24 @@ int main(int argc, char *argv[]) {
     const auto block_count = 1;
 #endif
 
-/* -------------------------------------------------------------------------- */
-    auto h_particle_indices_before = HostIntArray{ particle_count };
-    auto h_particle_indices_after = HostIntArray{ particle_count };
-    auto d_particle_indices_before = DeviceIntArray{ h_particle_indices_before };
-    auto d_particle_indices_after = DeviceIntArray{ h_particle_indices_after };
-
-    auto h_cell_indices_before = HostIntArray{ particle_count };
-    auto h_cell_indices_after = HostIntArray{ particle_count };
-    auto d_cell_indices_before = DeviceIntArray{ h_cell_indices_before };
-    auto d_cell_indices_after = DeviceIntArray{ h_cell_indices_after };
-
-    auto h_particle_indices_rel_cell = HostIntArray{ particle_count };
-    auto h_particle_count_per_cell = HostIntArray{ particle_count };
-    auto d_particle_indices_rel_cell = DeviceIntArray{ h_particle_indices_rel_cell };
-    auto d_particle_count_per_cell = DeviceIntArray{ h_particle_count_per_cell };
-/* Initialize radix sort ---------------------------------------------------- */
-    // Initialize radix sort.
-    // Temporary storage used by radix sort.
-    void *d_sort_storage = nullptr;
-    auto sort_storage_byte_count = size_t{};
-    // Run the sorting with uninitialized temporary storage to compute the
-    // required temporary storage size.
-    cub::DeviceRadixSort::SortPairs(
-        d_sort_storage, sort_storage_byte_count,
-        d_cell_indices_before.i, d_cell_indices_after.i,
-        d_particle_indices_before.i, d_particle_indices_after.i,
-        particle_count
-    );
-    // Allocate temporary storage.
-    cudaMalloc(&d_sort_storage, sort_storage_byte_count);
-/* Initialize particle indices ---------------------------------------------- */
-    initialize_indices<<<block_count, block_size>>>(
-        d_particle_indices_before.i, particle_count
-    );
-/* Get cell index per particle ---------------------------------------------- */
-    // Initialize particle cell indices.
-    initialize_particle_cell_indices<<<block_count, block_size>>>(
-        d_particles.pos_x, d_particles.pos_y, particle_count,
-        d_cell_indices_before.i, grid_dimensions, cell_size
-    );
-
-/* // Sort particle indices by cell. ---------------------------------------- */
-    // Sort particle indices by cell.
-    cub::DeviceRadixSort::SortPairs(
-        d_sort_storage, sort_storage_byte_count,
-        d_cell_indices_before.i, d_cell_indices_after.i,
-        d_particle_indices_before.i, d_particle_indices_after.i,
-        particle_count
-    );
-/* Initialize kernel data --------------------------------------------------- */
-    // Initialize kernel data.
-    initialize_kernel_data<<<block_count, block_size>>>(
-        particle_count, d_cell_indices_after.i, d_particle_indices_rel_cell.i,
-        d_particle_count_per_cell.i
-    );
-/* -------------------------------------------------------------------------- */
-
     // Run kernel.
     switch (selected_version) {
     case Version::global:
         charge_density_global_2d<<<block_count, block_size>>>(
             d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
-            d_charge_densities.cells, grid_dimensions, cell_size
+            grid_dimensions, cell_size, d_charge_densities.cells
         );
         break;
-    case Version::shared:
-        charge_density_shared_2d<<<block_count, block_size>>>(
+    case Version::shared: {
+        auto charge_density_shared_2d = ChargeDensityShared2d(
+            particle_count, block_count
+        );
+        charge_density_shared_2d.compute(
             d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
-            d_charge_densities.cells, grid_dimensions, cell_size,
-            d_particle_indices_after.i, d_cell_indices_after.i,
-            d_particle_indices_rel_cell.i, d_particle_count_per_cell.i
+            grid_dimensions, cell_size, d_charge_densities.cells
         );
         break;
-    
+    }
     default:
         std::cerr << "Unsupported version number.\n";
         return 1;
