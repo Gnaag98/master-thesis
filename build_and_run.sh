@@ -1,19 +1,19 @@
 #!/bin/bash
 
-cmake -S . -B build
-cd build
-make
+./build.sh
 if [ $? -ne 0 ]; then
-    return 1
+    exit 1
 fi
+
+cd build
 ./master_thesis $1 $2 $3 $4 $5 0 ../output $6 $7 $8
 if [ $? -ne 0 ]; then
     cd ..
-    return 1
+    exit 1
 fi
 ./master_thesis $1 $2 $3 $4 $5 1 ../output $6 $7 $8
 if [ $? -ne 0 ]; then
     cd ..
-    return 1
+    exit 1
 fi
 cd ..

@@ -13,12 +13,6 @@ thesis::Timer::~Timer() {
 
     const auto end = high_resolution_clock::now();
     const auto duration = end - start;
-    std::cout << name << " took ";
-    if (duration > 0ms) {
-        const auto duration_ms = duration_cast<milliseconds>(duration);
-        std::cout << duration_ms.count() << " ms.\n";
-    } else {
-        const auto duration_us = duration_cast<microseconds>(duration);
-        std::cout << duration_us.count() << " µs.\n";
-    }
+    const auto duration_us = duration_cast<microseconds>(duration);
+    std::cout << name << " took " << duration_us.count() << " µs.\n";
 }
