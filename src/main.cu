@@ -1,4 +1,3 @@
-#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -12,6 +11,7 @@
 #include "int_array.cuh"
 #include "particles.cuh"
 #include "particle_generation.cuh"
+#include "timer.cuh"
 
 enum class Version {
     global = 0,
@@ -48,7 +48,10 @@ int main(int argc, char *argv[]) {
     const auto should_save = argc > 9 ? std::stoi(argv[9]) : 1;
     const auto random_seed = argc > 10 ? std::stoi(argv[10]) : 1;
 
-    std::cout << ((selected_version == Version::global) ? "Global" : "Shared");
+    const auto version_name = (
+        (selected_version == Version::global) ? "Global" : "Shared"
+    );
+    std::cout << version_name;
     
 
     // The complete grid includes ghost layers around the simulation grid.
@@ -81,31 +84,36 @@ int main(int argc, char *argv[]) {
     auto h_charge_densities = HostGrid{ grid_dimensions };
     auto d_charge_densities = DeviceGrid{ grid_dimensions };
 
-    
-
     // Prepare shared version, even if it is not used.
     auto charge_density_shared_2d = ChargeDensityShared2d(
         particle_count, block_count
     );
 
-    // Run kernel.
-    switch (selected_version) {
-    case Version::global:
-        charge_density_global_2d<<<block_count, block_size>>>(
-            d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
-            grid_dimensions, cell_size, d_charge_densities.cells
-        );
-        break;
-    case Version::shared: {
-        charge_density_shared_2d.compute(
-            d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
-            grid_dimensions, cell_size, d_charge_densities.cells
-        );
-        break;
-    }
-    default:
-        std::cerr << "Unsupported version number.\n";
-        return 1;
+    // Limit the lifetime of the timer using a scope.
+    {
+        auto kernel_timer = thesis::Timer{ version_name };
+        // Run kernel.
+        switch (selected_version) {
+        case Version::global:
+            charge_density_global_2d<<<block_count, block_size>>>(
+                d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
+                grid_dimensions, cell_size, d_charge_densities.cells
+            );
+            break;
+        case Version::shared: {
+            charge_density_shared_2d.compute(
+                d_particles.pos_x, d_particles.pos_y, particle_count, particle_charge,
+                grid_dimensions, cell_size, d_charge_densities.cells
+            );
+            break;
+        }
+        default:
+            std::cerr << "Unsupported version number.\n";
+            return 1;
+        }
+
+        // Wait for the kernel to finish.
+        cudaDeviceSynchronize();
     }
 
     // Save data to disk.
