@@ -29,7 +29,8 @@ target_compile_options(${PROJECT_NAME}
     PRIVATE --expt-relaxed-constexpr
 )
 
-##[[
+# Comment/uncomment this line to disable/enable all compile definitions.
+#[[
 target_compile_definitions(${PROJECT_NAME}
     PRIVATE DEBUG
 )

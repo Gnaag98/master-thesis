@@ -40,6 +40,9 @@ def main():
 
     print(f'Max absolute error: {absolute_errors.max()}')
     print(f'Number of cells with errors larger than the tolerance: {has_error.sum()}')
+    if (has_error.size > ((64+2) * (64+2))):
+        print('Grid too large. Exiting without plotting.')
+        return
 
     # Initialize size of figure before drawing rectangles since add_patch
     # doesn't resize the axes.
