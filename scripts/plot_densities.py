@@ -6,32 +6,16 @@ from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import numpy as np
 
-def main():
-    # Parse command line arguments.
-    parser = argparse.ArgumentParser()
-    parser.add_argument('dim_x', type=int)
-    parser.add_argument('dim_y', type=int)
-    parser.add_argument('filename')
-    args = parser.parse_args()
-    # Grid parameters with ghost cells included.
-    cell_size = 64
-    grid_size_x = args.dim_x + 2
-    grid_size_y = args.dim_y + 2
+# Output directory relative to this file.
+scripts_directory = Path(__file__).parent
+root_directory = scripts_directory.parent
+output_directory = root_directory / 'output'
 
-    densities_filename = args.filename
 
-    # Output directory relative to this file.
-    scripts_directory = Path(__file__).parent
-    root_directory = scripts_directory.parent
-    output_directory = root_directory / 'output'
-
-    # Get particle positions.
-    with open(output_directory / 'positions.csv') as file:
-        reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
-        positions = [row[:-1] for row in reader]
-    x = [x / cell_size for x in positions[0]]
-    y = [y / cell_size for y in positions[1]]
+def plot_densities(version: str, grid_size_x: int, grid_size_y: int,
+                   should_show_positions: bool, x: list, y: list):
     # Get charge densities.
+    densities_filename = f'charge_densities_{version}.csv'
     with open(output_directory / densities_filename) as file:
         reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
         densities = np.array([row[:-1] for row in reader][0])
@@ -40,9 +24,9 @@ def main():
 
     # Initialize size of figure before drawing rectangles since add_patch
     # doesn't resize the axes.
-    ax = plt.axes()
-    plt.xlim((-1, (grid_size_x-1)))
-    plt.ylim((-1, (grid_size_y-1)))
+    _, ax = plt.subplots()
+    ax.set_xlim((-1, (grid_size_x-1)))
+    ax.set_ylim((-1, (grid_size_y-1)))
     # Plot heatmap by drawing rectangles.
     for j in range(grid_size_y):
         for i in range(grid_size_x):
@@ -53,9 +37,37 @@ def main():
     ax.add_patch(Rectangle((-1, -1), grid_size_x, grid_size_y, edgecolor='k', facecolor='none'))
     ax.add_patch(Rectangle((0, 0), grid_size_x-2, grid_size_y-2, edgecolor='r', facecolor='none'))
     # Plot particle positions.
-    #ax.scatter(x, y, s=[8*4 for _ in range(len(x))])
+    if (should_show_positions):
+        ax.scatter(x, y, s=[8*4 for _ in range(len(x))])
     # Show the figure.
-    plt.axis('equal')
+    ax.set_title(version.capitalize())
+    ax.axis('equal')
+
+
+def main():
+    # Parse command line arguments.
+    parser = argparse.ArgumentParser()
+    parser.add_argument('dim_x', type=int)
+    parser.add_argument('dim_y', type=int)
+    parser.add_argument('--positions', action='store_true')
+    args = parser.parse_args()
+    # Grid parameters with ghost cells included.
+    cell_size = 64
+    grid_size_x: int = args.dim_x + 2
+    grid_size_y: int = args.dim_y + 2
+    should_show_positions: bool = args.positions
+
+    # Get particle positions.
+    with open(output_directory / 'positions.csv') as file:
+        reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
+        positions = [row[:-1] for row in reader]
+    x = [x / cell_size for x in positions[0]]
+    y = [y / cell_size for y in positions[1]]
+    
+    plot_densities('global', grid_size_x, grid_size_y, should_show_positions,
+                   x, y)
+    plot_densities('shared', grid_size_x, grid_size_y, should_show_positions,
+                   x, y)
     plt.show()
 
 
