@@ -3,7 +3,7 @@
 #include "common.cuh"
 
 __global__
-void thesis::charge_density_global_2d(
+void thesis::global_2d::charge_density(
     const float *pos_x, const float *pos_y, const size_t particle_count,
     const float particle_charge, const int3 grid_dimensions,
     const int cell_size, float *densities
