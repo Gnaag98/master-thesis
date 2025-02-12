@@ -224,6 +224,10 @@ thesis::ChargeDensityShared2d::ChargeDensityShared2d(
     particle_count_per_cell{ particle_count },
     block_count{ block_count }
 {
+    // Particle indices [0, 1, 2, ...] only need to be initialized once.
+    initialize_particle_indices<<<block_count, block_size>>>(
+        particle_count, particle_indices_before.i
+    );
     // Run the sorting with uninitialized temporary storage to compute the
     // required temporary storage size.
     sort_particles_by_cell(particle_count);
@@ -251,9 +255,6 @@ void thesis::ChargeDensityShared2d::compute(
     const float particle_charge, const int3 grid_dimensions,
     const int cell_size, float *densities
 ) {
-    initialize_particle_indices<<<block_count, block_size>>>(
-        particle_count, particle_indices_before.i
-    );
     initialize_particle_cell_indices<<<block_count, block_size>>>(
         pos_x, pos_y, particle_count, grid_dimensions, cell_size,
         particle_cell_indices_before.i

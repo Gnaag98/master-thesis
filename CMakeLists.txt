@@ -16,6 +16,8 @@ add_executable(${PROJECT_NAME}
     src/charge_density_global_2d.cuh
     src/charge_density_shared_2d.cu
     src/charge_density_shared_2d.cuh
+    src/timer.cu
+    src/timer.cuh
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -29,7 +31,8 @@ target_compile_options(${PROJECT_NAME}
     PRIVATE --expt-relaxed-constexpr
 )
 
-##[[
+# Comment/uncomment this line to disable/enable all compile definitions.
+#[[
 target_compile_definitions(${PROJECT_NAME}
     PRIVATE DEBUG
 )
