@@ -20,7 +20,6 @@ namespace thesis {
     struct DeviceIntArray {
         int *i;
 
-        explicit DeviceIntArray(size_t count);
         DeviceIntArray(const HostIntArray &indices);
         DeviceIntArray(const DeviceIntArray &) = delete;
         ~DeviceIntArray();

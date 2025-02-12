@@ -3,36 +3,39 @@
 
 #include "int_array.cuh"
 
-namespace thesis {
-    class ChargeDensityShared2d {
-    public:
-        ChargeDensityShared2d(
-            size_t particle_count, size_t block_count
-        );
-        ~ChargeDensityShared2d();
+namespace thesis::shared_2d {
+    __global__
+    void initialize_particle_indices(
+        size_t particle_count, int *indices
+    );
 
-        /// Computes 2D charge density using global and shared memory.
-        void compute(
-            const float *pos_x, const float *pos_y, size_t particle_count,
-            float particle_charge, int3 grid_dimensions, int cell_size,
-            float *densities
-        );
+    __global__
+    void initialize_particle_cell_indices(
+        const float *pos_x, const float *pos_y, size_t particle_count,
+        int3 grid_dimensions, int cell_size, int *cell_indices
+    );
 
-    private:
-        void sort_particles_by_cell(size_t particle_count);
+    void sort_particles_by_cell(
+        void *sort_storage, size_t &sort_storage_size,
+        int *particle_cell_indices_before, int *particle_cell_indices_after,
+        int *particle_indices_before, int *particle_indices_after,
+        size_t particle_count
+    );
 
-        DeviceIntArray particle_indices_before;
-        DeviceIntArray particle_indices_after;
-        DeviceIntArray particle_cell_indices_before;
-        DeviceIntArray particle_cell_indices_after;
-        DeviceIntArray particle_indices_rel_cell;
-        DeviceIntArray particle_count_per_cell;
+    __global__
+    void initialize_particle_occupancy(
+        size_t particle_count, const int *cell_indices,
+        int *particle_indices_rel_cell, int *particle_count_per_cell
+    );
 
-        const size_t block_count;
-
-        void *sort_storage = nullptr;
-        size_t sort_storage_size;
-    };
+    __global__
+    void charge_density(
+        const float *pos_x, const float *pos_y, size_t particle_count,
+        float particle_charge, int3 grid_dimensions,
+        int cell_size, const int *particle_indices,
+        const int *particle_cell_indices, const int *particle_indices_rel_cell,
+        const int *particle_count_per_cell, float *densities
+    );
 };
 
 #endif
