@@ -25,11 +25,14 @@ int main(int argc, char *argv[]) {
     const auto particle_charge = 1.0f;
     // Number of outside layers of ghost cells.
     const auto ghost_layer_count = 1;
+    // XXX: Back to being hardcoded.
+    const auto random_seed = 1;
 
     if (argc < 8) {
         std::cerr << "Usage: "<< argv[0] <<
             " dim_x dim_y dim_z cell_size particles/cell version"
-            " output_directory [particle_distribution] [seed]\n";
+            " output_directory particle_distribution should_save"
+            " [positions_filename]\n";
         return 1;
     }
 
@@ -42,17 +45,25 @@ int main(int argc, char *argv[]) {
     const auto particles_per_cell = std::stoi(argv[5]);
     const auto selected_version = Version{ std::stoi(argv[6]) };
     const auto output_directory_name = argv[7];
-    const auto particle_distribution = argc > 8
-        ? ParticleDistribution{ std::stoi(argv[8]) }
-        : ParticleDistribution::pattern_2d;
-    const auto should_save = argc > 9 ? std::stoi(argv[9]) : 1;
-    const auto random_seed = argc > 10 ? std::stoi(argv[10]) : 1;
+    const auto particle_distribution = ParticleDistribution{
+        std::stoi(argv[8])
+    };
+    const auto should_save = std::stoi(argv[9]);
+
+    const auto positions_filepath = (
+        argc > 10 ? std::filesystem::path{ argv[10] } : ""
+    );
+    if (particle_distribution == ParticleDistribution::file
+        && positions_filepath.empty()
+    ) {
+        std::cerr << "Filename needed when generating from file.\n";
+        return 1;
+    }
 
     const auto version_name = (
         (selected_version == Version::global) ? "Global" : "Shared"
     );
-    std::cout << version_name;
-    
+    std::cout << version_name << '\n';
 
     // The complete grid includes ghost layers around the simulation grid.
     const auto grid_dimensions = int3{
@@ -64,7 +75,7 @@ int main(int argc, char *argv[]) {
     // Initialize particles.
     auto h_particles = generate_particles(
         simulation_dimensions, cell_size, particles_per_cell, particle_charge,
-        random_seed, particle_distribution
+        random_seed, particle_distribution, positions_filepath
     );
     auto d_particles = DeviceParticles{ h_particles };
     d_particles.copy(h_particles);

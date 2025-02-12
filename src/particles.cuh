@@ -14,6 +14,9 @@ namespace thesis {
         float charge;
 
         HostParticles(int count, float charge);
+        HostParticles(
+            std::filesystem::path positions_filepath, float charge
+        );
 
         void copy(const DeviceParticles &particles);
 
