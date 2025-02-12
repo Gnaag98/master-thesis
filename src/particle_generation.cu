@@ -191,12 +191,24 @@ namespace {
 
         return particles;
     }
+
+    /// Randomly generates a specified number of particels per cell.
+    auto generate_particles_from_file(
+        const float particle_charge,
+        const std::filesystem::path positions_filepath
+    ) -> thesis::HostParticles {
+        auto particles = thesis::HostParticles{
+            positions_filepath, particle_charge
+        };
+        return particles;
+    }
 };
 
 auto thesis::generate_particles (
     const int3 simulation_dimensions, const int cell_size,
     const int particles_per_cell, const float particle_charge,
-    const int random_seed, const ParticleDistribution distribution
+    const int random_seed, const ParticleDistribution distribution,
+    const std::filesystem::path positions_filepath
 ) -> thesis::HostParticles {
     switch (distribution) {
     case ParticleDistribution::uniform:
@@ -208,6 +220,10 @@ auto thesis::generate_particles (
         return generate_particles_from_2d_pattern(
             simulation_dimensions, cell_size, particles_per_cell,
             particle_charge, random_seed
+        );
+    case ParticleDistribution::file:
+        return generate_particles_from_file(
+            particle_charge, positions_filepath
         );
     
     default:
