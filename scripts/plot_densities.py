@@ -9,14 +9,14 @@ import numpy as np
 # Output directory relative to this file.
 scripts_directory = Path(__file__).parent
 root_directory = scripts_directory.parent
-output_directory = root_directory / 'output'
 
 
-def plot_densities(version: str, grid_size_x: int, grid_size_y: int,
-                   should_show_positions: bool, x: list, y: list):
+def plot_densities(file_directory: Path, version: str, grid_size_x: int,
+                   grid_size_y: int, should_show_positions: bool, x: list,
+                   y: list, save_directory: Path|None):
     # Get charge densities.
     densities_filename = f'charge_densities_{version}.csv'
-    with open(output_directory / densities_filename) as file:
+    with open(file_directory / densities_filename) as file:
         reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
         densities = np.array([row[:-1] for row in reader][0])
     densities = densities[0:grid_size_x*grid_size_y]
@@ -24,7 +24,7 @@ def plot_densities(version: str, grid_size_x: int, grid_size_y: int,
 
     # Initialize size of figure before drawing rectangles since add_patch
     # doesn't resize the axes.
-    _, ax = plt.subplots()
+    fig, ax = plt.subplots()
     ax.set_xlim((-1, (grid_size_x-1)))
     ax.set_ylim((-1, (grid_size_y-1)))
     # Plot heatmap by drawing rectangles.
@@ -42,6 +42,8 @@ def plot_densities(version: str, grid_size_x: int, grid_size_y: int,
     # Show the figure.
     ax.set_title(version.capitalize())
     ax.axis('equal')
+    if (save_directory is not None):
+        fig.savefig(save_directory / f'charge_densities_{version}')
 
 
 def main():
@@ -49,25 +51,37 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('dim_x', type=int)
     parser.add_argument('dim_y', type=int)
+    parser.add_argument('--directory', default='output')
     parser.add_argument('--positions', action='store_true')
+    parser.add_argument('--save')
     args = parser.parse_args()
     # Grid parameters with ghost cells included.
     cell_size = 64
     grid_size_x: int = args.dim_x + 2
     grid_size_y: int = args.dim_y + 2
+    directory_argument = Path(args.directory)
     should_show_positions: bool = args.positions
+    if (args.save):
+        save_directory = Path(args.save)
+    else:
+        save_directory = None
+
+    if (directory_argument.is_absolute()):
+        file_directory = directory_argument
+    else:
+        file_directory = root_directory / directory_argument
 
     # Get particle positions.
-    with open(output_directory / 'positions.csv') as file:
+    with open(file_directory / 'positions.csv') as file:
         reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
         positions = [row[:-1] for row in reader]
     x = [x / cell_size for x in positions[0]]
     y = [y / cell_size for y in positions[1]]
     
-    plot_densities('global', grid_size_x, grid_size_y, should_show_positions,
-                   x, y)
-    plot_densities('shared', grid_size_x, grid_size_y, should_show_positions,
-                   x, y)
+    plot_densities(file_directory, 'global', grid_size_x, grid_size_y,
+                   should_show_positions, x, y, save_directory)
+    plot_densities(file_directory, 'shared', grid_size_x, grid_size_y,
+                   should_show_positions, x, y, save_directory)
     plt.show()
 
 
