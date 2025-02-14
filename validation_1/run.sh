@@ -34,6 +34,4 @@ ${root}/build/master_thesis ${dim_x} ${dim_y} ${dim_z} ${cell_size} \
     ${should_save} ${positions_filepath}
 
 # Plot charge densities.
-figures_directory=${directory}/figures
-mkdir -p ${figures_directory}
 ${root}/.venv/bin/python ${directory}/plot.py ${dim_x} ${dim_y}

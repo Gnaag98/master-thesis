@@ -6,6 +6,7 @@ from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def plot_densities(densities_filepath: Path, grid_size_x: int, grid_size_y: int,
                    x: list, y: list, figures_directory: Path):
     # Get charge densities.
@@ -16,10 +17,10 @@ def plot_densities(densities_filepath: Path, grid_size_x: int, grid_size_y: int,
     densities = np.reshape(densities, (-1, grid_size_x))
 
     # Initialize size of figure before drawing rectangles since add_patch
-    # doesn't resize the axes.
+    # doesn't resize the axes, including padding outside grid.
     fig, ax = plt.subplots()
-    ax.set_xlim((-1, (grid_size_x-1)))
-    ax.set_ylim((-1, (grid_size_y-1)))
+    ax.set_xlim((-1.5, (grid_size_x-0.5)))
+    ax.set_ylim((-1.5, (grid_size_y-0.5)))
     ax.axis('equal')
     ax.set_title('Validation 1')
     # Plot heatmap by drawing rectangles.
@@ -61,7 +62,8 @@ def main():
     directory = Path(__file__).parent
     positions_filepath = directory / 'output' / 'positions.csv'
     densities_filepath = directory / 'output' / 'charge_densities_global.csv'
-    figures_directory = directory / 'figures'
+    figures_directory = directory / 'output'
+    figures_directory.mkdir(exist_ok=True)
 
     # Get particle positions.
     with open(positions_filepath) as file:
