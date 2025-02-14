@@ -1,5 +1,4 @@
 import argparse
-import csv
 from pathlib import Path
 
 from matplotlib.patches import Rectangle
@@ -25,16 +24,12 @@ def main():
     output_directory = root_directory / 'output'
 
     # Get charge densities.
-    with open(output_directory / 'charge_densities_global.csv') as file:
-        reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
-        densities_global = np.array([row[:-1] for row in reader][0])
+    densities_global = np.load(output_directory / 'charge_densities_global.csv')
     densities_global = densities_global[0:grid_size_x*grid_size_y]
-    densities_global = np.reshape(densities_global, (-1, grid_size_x))
-    with open(output_directory / 'charge_densities_shared.csv') as file:
-        reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
-        densities_shared = np.array([row[:-1] for row in reader][0])
+    densities_global: np.ndarray = np.reshape(densities_global, (-1, grid_size_x))
+    densities_shared = np.load(output_directory / 'charge_densities_shared.csv')
     densities_shared = densities_shared[0:grid_size_x*grid_size_y]
-    densities_shared = np.reshape(densities_shared, (-1, grid_size_x))
+    densities_shared: np.ndarray = np.reshape(densities_shared, (-1, grid_size_x))
     absolute_errors = np.abs(densities_global - densities_shared)
     has_error = absolute_errors > tolerance
 

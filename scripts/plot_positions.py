@@ -1,7 +1,7 @@
-import csv
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def main():
@@ -9,12 +9,7 @@ def main():
     root_directory = scripts_directory.parent
     output_directory = root_directory / 'output'
 
-    with open(output_directory / 'positions.csv') as file:
-        reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
-        positions = [row[:-1] for row in reader]
-    x = positions[0]
-    y = positions[1]
-    z = positions[2]
+    x, y, z = np.load(output_directory / 'positions.npy')
 
     ax = plt.axes(projection='3d')
     ax.scatter(x, y, z)

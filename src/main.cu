@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
         std::cout << "Saving to disk.\n";
         const auto output_directory = std::filesystem::path(output_directory_name);
         std::filesystem::create_directory(output_directory);
-        h_particles.save_positions(output_directory / "positions.csv");
+        h_particles.save_positions(output_directory / "positions.npz");
         const auto densities_filename = ([selected_version](){
             auto filename = std::string("charge_densities");
             switch (selected_version) {
@@ -198,7 +198,7 @@ int main(int argc, char *argv[]) {
                 filename += "_shared";
                 break;
             }
-            filename += ".csv";
+            filename += ".npy";
             return filename;
         })();
         h_charge_densities.save(output_directory / densities_filename);

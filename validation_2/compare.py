@@ -1,5 +1,4 @@
 import argparse
-import csv
 from pathlib import Path
 
 from matplotlib.patches import Rectangle
@@ -41,21 +40,10 @@ def heatmap(grid_data: np.ndarray, figures_directory: Path):
 
 
 def get_densities(densities_filepath: Path, grid_size_x: int, grid_size_y: int):
-    with open(densities_filepath) as file:
-        reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
-        densities = np.array([row[:-1] for row in reader][0])
+    densities: np.ndarray = np.load(densities_filepath)
     densities = densities[0:grid_size_x*grid_size_y]
-    return np.reshape(densities, (-1, grid_size_x))
-
-
-def get_total_charge(densities: np.ndarray):
-    grid_size_y, grid_size_x = densities.shape
-    total_charge = 0.0
-    # Plot heatmap by drawing rectangles.
-    for j in range(grid_size_y):
-        for i in range(grid_size_x):
-            total_charge += densities[j,i]
-    return total_charge
+    densities: np.ndarray = np.reshape(densities, (-1, grid_size_x))
+    return densities
 
 
 def main():
@@ -75,14 +63,19 @@ def main():
 
     # Directories relative to this file.
     directory = Path(__file__).parent
-    densities_filepath = directory / 'output' / 'charge_densities_global.csv'
+    densities_filepath = directory / 'output' / 'charge_densities_global.npy'
 
     densities = get_densities(densities_filepath, grid_size_x, grid_size_y)
     
     total_charge_product = particle_count * particle_charge
-    total_charge_sum = get_total_charge(densities)
-    error = abs(total_charge_product - total_charge_sum)
-    print(f'error: {error}')
+    total_charge_sum = densities.sum()
+    error_absolute = abs(total_charge_sum - total_charge_product)
+    error_relative = error_absolute / total_charge_sum
+    print(f'particle_count: {particle_count}')
+    print(f'total_charge(product): {total_charge_product}')
+    print(f'total_charge(sum): {total_charge_sum}')
+    print(f'error_absolute: {error_absolute}')
+    print(f'error_relative: {error_relative}')
 
 
 if __name__ == '__main__':
