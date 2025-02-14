@@ -10,7 +10,6 @@ if [ ! -f ${positions_filepath} ]; then
     exit 1
 fi
 
-
 # Setup program parameters
 # Filename must include the string {x}x{y}x{z} where {x}, {y}, {z} are integers.
 dimensions=($( echo ${positions_filepath} | grep -oP '\d+x\dx+\d' | tr 'x' '\n' ))
@@ -27,11 +26,16 @@ should_save=1
 
 # Make sure the program is up to date.
 ${root}/build.sh
+if [[ $? -ne 0 ]]; then
+    exit 1
+fi
 
 # Run the global version.
 ${root}/build/master_thesis ${dim_x} ${dim_y} ${dim_z} ${cell_size} \
     ${particles_per_cell} ${version} ${output_directory} ${distribution} \
     ${should_save} ${positions_filepath}
 
-# Plot charge densities.
-${root}/.venv/bin/python ${directory}/plot.py ${dim_x} ${dim_y}
+# Plot charge densities and compare with expected values.
+python=${root}/.venv/bin/python
+${python} ${directory}/plot.py ${dim_x} ${dim_y}
+${python} ${directory}/compare.py ${dim_x} ${dim_y}

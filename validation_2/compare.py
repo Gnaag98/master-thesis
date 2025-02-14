@@ -48,38 +48,41 @@ def get_densities(densities_filepath: Path, grid_size_x: int, grid_size_y: int):
     return np.reshape(densities, (-1, grid_size_x))
 
 
+def get_total_charge(densities: np.ndarray):
+    grid_size_y, grid_size_x = densities.shape
+    total_charge = 0.0
+    # Plot heatmap by drawing rectangles.
+    for j in range(grid_size_y):
+        for i in range(grid_size_x):
+            total_charge += densities[j,i]
+    return total_charge
+
+
 def main():
     # Parse command line arguments.
     parser = argparse.ArgumentParser()
     parser.add_argument('dim_x', type=int)
     parser.add_argument('dim_y', type=int)
+    parser.add_argument('particle_count', type=int)
     args = parser.parse_args()
     # Grid parameters with ghost cells included.
     grid_size_x: int = args.dim_x + 2
     grid_size_y: int = args.dim_y + 2
+    particle_count: int = args.particle_count
+
+    particle_charge = 1.0
+
 
     # Directories relative to this file.
     directory = Path(__file__).parent
-    key_directory = directory / 'key'
-    run_directory = directory / 'output'
-    figures_directory = directory / 'output'
-    figures_directory.mkdir(exist_ok=True)
-    densities_filename = 'charge_densities_global.csv'
+    densities_filepath = directory / 'output' / 'charge_densities_global.csv'
 
-    run_densities = get_densities(run_directory / densities_filename,
-                                  grid_size_x, grid_size_y)
-    key_densities = get_densities(key_directory / densities_filename,
-                                  grid_size_x, grid_size_y)
+    densities = get_densities(densities_filepath, grid_size_x, grid_size_y)
     
-    error = np.abs(run_densities - key_densities)
-    min_error = error.min()
-    max_error = error.max()
-    mean_error = error.mean()
-    print(f'min_error: {min_error}')
-    print(f'max_error: {max_error}')
-    print(f'avg_error: {mean_error}')
-    if min_error or max_error:
-        heatmap(error, figures_directory)
+    total_charge_product = particle_count * particle_charge
+    total_charge_sum = get_total_charge(densities)
+    error = abs(total_charge_product - total_charge_sum)
+    print(f'error: {error}')
 
 
 if __name__ == '__main__':
