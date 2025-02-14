@@ -1,6 +1,6 @@
 #include "grid.cuh"
 
-#include <fstream>
+#include "cnpy.h"
 
 thesis::HostGrid::HostGrid(const int3 dimensions)
     : cells(dimensions.x * dimensions.y * dimensions.z),
@@ -12,9 +12,8 @@ void thesis::HostGrid::copy(const DeviceGrid &grid) {
 }
 
 void thesis::HostGrid::save(std::filesystem::path filepath) {
-    auto file = std::ofstream{ filepath };
-    for (const auto cell : cells) { file << std::setprecision(15) << cell << ','; }
-    file << '\n';
+    const auto shape = std::vector{ cells.size() };
+    cnpy::npy_save(filepath, cells.data(), shape);
 }
 
 thesis::DeviceGrid::DeviceGrid(const int3 dimensions)

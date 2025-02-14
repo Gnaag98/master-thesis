@@ -1,6 +1,6 @@
 #include "int_array.cuh"
 
-#include <fstream>
+#include "cnpy.h"
 
 namespace {
     using namespace thesis;
@@ -15,9 +15,8 @@ void thesis::HostIntArray::copy(const DeviceIntArray &indices) {
 }
 
 void thesis::HostIntArray::save(std::filesystem::path filepath) {
-    auto file = std::ofstream{ filepath };
-    for (const auto index : i) { file << index << ','; }
-    file << '\n';
+    const auto shape = std::vector{ i.size() };
+    cnpy::npy_save(filepath, i.data(), shape);
 }
 
 thesis::DeviceIntArray::DeviceIntArray(const HostIntArray &indices) {

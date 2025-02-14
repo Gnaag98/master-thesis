@@ -31,6 +31,11 @@ target_compile_options(${PROJECT_NAME}
     PRIVATE --expt-relaxed-constexpr
 )
 
+target_link_libraries(${PROJECT_NAME}
+    /usr/local/lib/libcnpy.so
+    z
+)
+
 # Comment/uncomment this line to disable/enable all compile definitions.
 #[[
 target_compile_definitions(${PROJECT_NAME}

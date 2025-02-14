@@ -40,12 +40,22 @@ def heatmap(grid_data: np.ndarray, figures_directory: Path):
     plt.show()
 
 
-def get_densities(densities_filepath: Path, grid_size_x: int, grid_size_y: int):
+def get_densities_npy(densities_filepath: Path, grid_size_x: int,
+                      grid_size_y: int):
+    densities = np.load(densities_filepath)
+    densities = densities[0:grid_size_x*grid_size_y]
+    densities: np.ndarray = np.reshape(densities, (-1, grid_size_x))
+    return densities
+
+
+def get_densities_csv(densities_filepath: Path, grid_size_x: int,
+                      grid_size_y: int):
     with open(densities_filepath) as file:
         reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
         densities = np.array([row[:-1] for row in reader][0])
     densities = densities[0:grid_size_x*grid_size_y]
-    return np.reshape(densities, (-1, grid_size_x))
+    densities: np.ndarray = np.reshape(densities, (-1, grid_size_x))
+    return densities
 
 
 def main():
@@ -64,12 +74,14 @@ def main():
     run_directory = directory / 'output'
     figures_directory = directory / 'output'
     figures_directory.mkdir(exist_ok=True)
-    densities_filename = 'charge_densities_global.csv'
+    densities_filename_stem = 'charge_densities_global'
 
-    run_densities = get_densities(run_directory / densities_filename,
-                                  grid_size_x, grid_size_y)
-    key_densities = get_densities(key_directory / densities_filename,
-                                  grid_size_x, grid_size_y)
+    run_densities = get_densities_npy(
+        run_directory / f'{densities_filename_stem}.npy', grid_size_x,
+        grid_size_y)
+    key_densities = get_densities_csv(
+        key_directory / f'{densities_filename_stem}.csv', grid_size_x,
+        grid_size_y)
     
     error = np.abs(run_densities - key_densities)
     min_error = error.min()

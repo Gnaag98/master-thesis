@@ -1,5 +1,4 @@
 import argparse
-import csv
 from pathlib import Path
 
 from matplotlib.patches import Rectangle
@@ -10,11 +9,9 @@ import numpy as np
 def plot_densities(densities_filepath: Path, grid_size_x: int, grid_size_y: int,
                    x: list, y: list, figures_directory: Path):
     # Get charge densities.
-    with open(densities_filepath) as file:
-        reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
-        densities = np.array([row[:-1] for row in reader][0])
+    densities = np.load(densities_filepath)
     densities = densities[0:grid_size_x*grid_size_y]
-    densities = np.reshape(densities, (-1, grid_size_x))
+    densities: np.ndarray = np.reshape(densities, (-1, grid_size_x))
 
     # Initialize size of figure before drawing rectangles since add_patch
     # doesn't resize the axes, including padding outside grid.
@@ -60,18 +57,18 @@ def main():
 
     # Directories relative to this file.
     directory = Path(__file__).parent
-    positions_filepath = directory / 'output' / 'positions.csv'
-    densities_filepath = directory / 'output' / 'charge_densities_global.csv'
+    positions_filepath = directory / 'output' / 'positions.npz'
+    densities_filepath = directory / 'output' / 'charge_densities_global.npy'
     figures_directory = directory / 'output'
     figures_directory.mkdir(exist_ok=True)
 
     # Get particle positions.
-    with open(positions_filepath) as file:
-        reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
-        positions = [row[:-1] for row in reader]
-    x = [x / cell_size for x in positions[0]]
-    y = [y / cell_size for y in positions[1]]
-    
+    positions = np.load(positions_filepath)
+    x: np.ndarray = positions['pos_x']
+    y: np.ndarray = positions['pos_y']
+    x /= cell_size
+    y /= cell_size
+
     plot_densities(densities_filepath, grid_size_x, grid_size_y, x, y,
                    figures_directory)
     plt.show()

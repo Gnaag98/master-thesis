@@ -4,6 +4,8 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "cnpy.h"
+
 namespace {
     void parse_line(std::ifstream &file, std::vector<float> &positions) {
         auto line_x = std::string{};
@@ -45,13 +47,10 @@ void thesis::HostParticles::copy(const DeviceParticles &particles) {
 }
 
 void thesis::HostParticles::save_positions(std::filesystem::path filepath) {
-    auto file = std::ofstream{ filepath };
-    for (const auto x : pos_x) { file << x << ','; }
-    file << '\n';
-    for (const auto y : pos_y) { file << y << ','; }
-    file << '\n';
-    for (const auto z : pos_z) { file << z << ','; }
-    file << '\n';
+    const auto shape = std::vector{ 1, pos_x.size() };
+    cnpy::npz_save(filepath, "pos_x", pos_x.data(), shape);
+    cnpy::npz_save(filepath, "pos_y", pos_y.data(), shape, "a");
+    cnpy::npz_save(filepath, "pos_z", pos_z.data(), shape, "a");
 }
 
 thesis::DeviceParticles::DeviceParticles(const HostParticles &particles) {
