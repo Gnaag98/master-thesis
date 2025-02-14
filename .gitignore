@@ -3,5 +3,3 @@
 
 build/
 output/
-
-!validation_*/output
