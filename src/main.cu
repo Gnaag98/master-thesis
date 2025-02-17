@@ -95,6 +95,14 @@ int main(int argc, char *argv[]) {
     auto h_charge_densities = HostGrid{ grid_dimensions };
     auto d_charge_densities = DeviceGrid{ grid_dimensions };
 
+    // Associated cell index for each particle.
+    auto h_associated_cells = HostIntArray{ particle_count };
+    auto d_associated_cells = DeviceIntArray{ h_associated_cells };
+    shared_2d::associate_particles_with_cells<<<block_count, block_size>>>(
+        d_particles.pos_x, d_particles.pos_y, particle_count, grid_dimensions,
+        cell_size, d_associated_cells.i
+    );
+
     // Limit the lifetime of the timer using a scope.
     {
         auto kernel_timer = thesis::Timer{ version_name };
@@ -124,13 +132,17 @@ int main(int argc, char *argv[]) {
 
     // Save data to disk.
     if (should_save) {
+        using namespace std::filesystem;
         h_particles.copy(d_particles);
         h_charge_densities.copy(d_charge_densities);
+        h_associated_cells.copy(d_associated_cells);
 
         std::cout << "Saving to disk.\n";
-        const auto output_directory = std::filesystem::path(output_directory_name);
-        std::filesystem::create_directory(output_directory);
+        const auto output_directory = path{ output_directory_name };
+        create_directory(output_directory);
+
         h_particles.save_positions(output_directory / "positions.npz");
+        
         const auto densities_filename = ([selected_version](){
             auto filename = std::string("charge_densities");
             switch (selected_version) {
@@ -145,6 +157,8 @@ int main(int argc, char *argv[]) {
             return filename;
         })();
         h_charge_densities.save(output_directory / densities_filename);
+
+        h_associated_cells.save(output_directory / "associated_cells.npy");
     }
     std::cout << "Done\n";
 }

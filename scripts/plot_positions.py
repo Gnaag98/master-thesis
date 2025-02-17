@@ -9,7 +9,10 @@ def main():
     root_directory = scripts_directory.parent
     output_directory = root_directory / 'output'
 
-    x, y, z = np.load(output_directory / 'positions.npy')
+    positions = np.load(output_directory / 'positions.npz')
+    x: np.ndarray = positions['pos_x']
+    y: np.ndarray = positions['pos_y']
+    z: np.ndarray = positions['pos_z']
 
     ax = plt.axes(projection='3d')
     ax.scatter(x, y, z)
