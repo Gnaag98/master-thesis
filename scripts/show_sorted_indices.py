@@ -19,7 +19,7 @@ def plot(grid_size_x: int, grid_size_y: int, x: list, y: list):
     ax.set_xlim((-1.5, (grid_size_x-0.5)))
     ax.set_ylim((-1.5, (grid_size_y-0.5)))
     ax.axis('equal')
-    ax.set_title('Particle-cell association')
+    ax.set_title('Particle indices')
 
     # Plot grid lines manually since ax.grid(True) partly covers the rectangles.
     for i in range(1, grid_size_x - 2):
