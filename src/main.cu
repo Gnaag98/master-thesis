@@ -95,39 +95,6 @@ int main(int argc, char *argv[]) {
     auto h_charge_densities = HostGrid{ grid_dimensions };
     auto d_charge_densities = DeviceGrid{ grid_dimensions };
 
-    // Prepare shared version, even if it is not used.
-    auto h_particle_indices_before = HostIntArray{ particle_count };
-    auto h_particle_indices_after = HostIntArray{ particle_count };
-    auto h_particle_cell_indices_before = HostIntArray{ particle_count };
-    auto h_particle_cell_indices_after = HostIntArray{ particle_count };
-    auto h_particle_indices_rel_cell = HostIntArray{ particle_count };
-    auto h_particle_count_per_cell = HostIntArray{ particle_count };
-    
-    auto d_particle_indices_before = DeviceIntArray{ h_particle_indices_before };
-    auto d_particle_indices_after = DeviceIntArray{ h_particle_indices_after };
-    auto d_particle_cell_indices_before = DeviceIntArray{ h_particle_cell_indices_before };
-    auto d_particle_cell_indices_after = DeviceIntArray{ h_particle_cell_indices_after };
-    auto d_particle_indices_rel_cell = DeviceIntArray{ h_particle_indices_rel_cell };
-    auto d_particle_count_per_cell = DeviceIntArray{ h_particle_count_per_cell };
-    
-    void *sort_storage = nullptr;
-    auto sort_storage_size = size_t{};
-    
-    // Particle indices [0, 1, 2, ...] only need to be initialized once.
-    shared_2d::initialize_particle_indices<<<block_count, block_size>>>(
-        particle_count, d_particle_indices_before.i
-    );
-    // Run the sorting with uninitialized sort storage to compute the
-    // required temporary storage size.
-    shared_2d::sort_particles_by_cell(
-        sort_storage, sort_storage_size,
-        d_particle_cell_indices_before.i, d_particle_cell_indices_after.i,
-        d_particle_indices_before.i, d_particle_indices_after.i, particle_count
-    );
-    // Allocate sort storage.
-    cudaMalloc(&sort_storage, sort_storage_size);
-    
-
     // Limit the lifetime of the timer using a scope.
     {
         auto kernel_timer = thesis::Timer{ version_name };
@@ -143,28 +110,7 @@ int main(int argc, char *argv[]) {
             break;
         case Version::shared: {
             using namespace shared_2d;
-            initialize_particle_cell_indices<<<block_count, block_size>>>(
-                d_particles.pos_x, d_particles.pos_y, particle_count,
-                grid_dimensions, cell_size, d_particle_cell_indices_before.i
-            );
-            sort_particles_by_cell(
-                sort_storage, sort_storage_size,
-                d_particle_cell_indices_before.i,
-                d_particle_cell_indices_after.i,
-                d_particle_indices_before.i,
-                d_particle_indices_after.i, particle_count
-            );
-            initialize_particle_occupancy<<<block_count, block_size>>>(
-                particle_count, d_particle_cell_indices_after.i,
-                d_particle_indices_rel_cell.i, d_particle_count_per_cell.i
-            );
-            charge_density<<<block_count, block_size>>>(
-                d_particles.pos_x, d_particles.pos_y, particle_count,
-                particle_charge, grid_dimensions, cell_size,
-                d_particle_indices_after.i, d_particle_cell_indices_after.i,
-                d_particle_indices_rel_cell.i, d_particle_count_per_cell.i,
-                d_charge_densities.cells
-            );
+            
             break;
         }
         default:
@@ -175,9 +121,6 @@ int main(int argc, char *argv[]) {
         // Wait for the kernel to finish.
         cudaDeviceSynchronize();
     }
-
-    // Deallocate the sort storage.
-    cudaFree(sort_storage);
 
     // Save data to disk.
     if (should_save) {
