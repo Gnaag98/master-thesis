@@ -8,7 +8,7 @@ void thesis::global_2d::charge_density(
     const float particle_charge, const int3 grid_dimensions,
     const int cell_size, float *densities
 ) {
-    // Grid-stride loop. Equivalent to regular if-statement grid is large
+    // Grid-stride loop. Equivalent to regular if-statement if grid is large
     // enough to cover all iterations of the loop.
     for (
         auto index = blockIdx.x * blockDim.x + threadIdx.x;

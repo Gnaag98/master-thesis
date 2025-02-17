@@ -47,7 +47,7 @@ void thesis::HostParticles::copy(const DeviceParticles &particles) {
 }
 
 void thesis::HostParticles::save_positions(std::filesystem::path filepath) {
-    const auto shape = std::vector{ 1, pos_x.size() };
+    const auto shape = std::vector{ pos_x.size() };
     cnpy::npz_save(filepath, "pos_x", pos_x.data(), shape);
     cnpy::npz_save(filepath, "pos_y", pos_y.data(), shape, "a");
     cnpy::npz_save(filepath, "pos_z", pos_z.data(), shape, "a");

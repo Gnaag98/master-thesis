@@ -14,7 +14,7 @@ def plot_densities(file_directory: Path, version: str, grid_size_x: int,
                    grid_size_y: int, should_show_positions: bool, x: list,
                    y: list, save_directory: Path|None):
     # Get charge densities.
-    densities_filename = f'charge_densities_{version}.csv'
+    densities_filename = f'charge_densities_{version}.npy'
     densities = np.load(file_directory / densities_filename)
     densities = densities[0:grid_size_x*grid_size_y]
     densities: np.ndarray = np.reshape(densities, (-1, grid_size_x))
