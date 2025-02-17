@@ -95,13 +95,39 @@ int main(int argc, char *argv[]) {
     auto h_charge_densities = HostGrid{ grid_dimensions };
     auto d_charge_densities = DeviceGrid{ grid_dimensions };
 
-    // Associated cell index for each particle.
-    auto h_associated_cells = HostIntArray{ particle_count };
-    auto d_associated_cells = DeviceIntArray{ h_associated_cells };
-    shared_2d::associate_particles_with_cells<<<block_count, block_size>>>(
-        d_particles.pos_x, d_particles.pos_y, particle_count, grid_dimensions,
-        cell_size, d_associated_cells.i
+    // Shared: initialize particle indices.
+    auto h_particle_indices = HostIntArray{ particle_count };
+    auto d_particle_indices = DeviceIntArray{
+        h_particle_indices
+    };
+    shared_2d::initialize_particle_indices<<<block_count, block_size>>>(
+        particle_count, d_particle_indices.i
     );
+
+    // Shared: Associated cell index for each particle.
+    auto h_associated_cells = HostIntArray{ particle_count };
+    auto d_associated_cells = DeviceIntArray{
+        h_associated_cells
+    };
+
+    // Shared: initialize sorting.
+    auto h_particle_indices_sorted = HostIntArray{ particle_count };
+    auto d_particle_indices_sorted = DeviceIntArray{
+        h_particle_indices_sorted
+    };
+    auto h_associated_cells_sorted = HostIntArray{ particle_count };
+    auto d_associated_cells_sorted = DeviceIntArray{
+        h_associated_cells_sorted
+    };
+    void *sort_storage = nullptr;
+    auto sort_storage_size = size_t{};
+    shared_2d::sort_particles_by_cell(
+        sort_storage, sort_storage_size,
+        d_associated_cells.i, d_associated_cells_sorted.i,
+        d_particle_indices.i, d_particle_indices_sorted.i,
+        particle_count
+    );
+    cudaMalloc(&sort_storage, sort_storage_size);
 
     // Limit the lifetime of the timer using a scope.
     {
@@ -118,7 +144,16 @@ int main(int argc, char *argv[]) {
             break;
         case Version::shared: {
             using namespace shared_2d;
-            
+            associate_particles_with_cells<<<block_count, block_size>>>(
+                d_particles.pos_x, d_particles.pos_y, particle_count, grid_dimensions,
+                cell_size, d_associated_cells.i
+            );
+            sort_particles_by_cell(
+                sort_storage, sort_storage_size,
+                d_associated_cells.i, d_associated_cells_sorted.i,
+                d_particle_indices.i, d_particle_indices_sorted.i,
+                particle_count
+            );
             break;
         }
         default:
@@ -130,12 +165,17 @@ int main(int argc, char *argv[]) {
         cudaDeviceSynchronize();
     }
 
+    cudaFree(sort_storage);
+
     // Save data to disk.
     if (should_save) {
         using namespace std::filesystem;
         h_particles.copy(d_particles);
         h_charge_densities.copy(d_charge_densities);
+        h_particle_indices.copy(d_particle_indices);
         h_associated_cells.copy(d_associated_cells);
+        h_particle_indices_sorted.copy(d_particle_indices_sorted);
+        h_associated_cells_sorted.copy(d_associated_cells_sorted);
 
         std::cout << "Saving to disk.\n";
         const auto output_directory = path{ output_directory_name };
@@ -158,7 +198,10 @@ int main(int argc, char *argv[]) {
         })();
         h_charge_densities.save(output_directory / densities_filename);
 
+        h_particle_indices.save(output_directory / "particle_indices.npy");
         h_associated_cells.save(output_directory / "associated_cells.npy");
+        h_particle_indices_sorted.save(output_directory / "particle_indices_sorted.npy");
+        h_associated_cells_sorted.save(output_directory / "associated_cells_sorted.npy");
     }
     std::cout << "Done\n";
 }
