@@ -1,6 +1,23 @@
 #include "charge_density_shared_2d.cuh"
 
+#include <cub/device/device_radix_sort.cuh>
+
 #include "common.cuh"
+
+__global__
+void thesis::shared_2d::initialize_particle_indices(
+    const size_t particle_count, int *indices
+) {
+    // Grid-stride loop. Equivalent to regular if-statement if grid is large
+    // enough to cover all iterations of the loop.
+    for (
+        auto index = blockIdx.x * blockDim.x + threadIdx.x;
+        index < particle_count;
+        index += blockDim.x * gridDim.x
+    ) {
+        indices[index] = index;
+    }
+}
 
 __global__
 void thesis::shared_2d::associate_particles_with_cells(
@@ -27,4 +44,18 @@ void thesis::shared_2d::associate_particles_with_cells(
         // Store 1D index.
         cell_indices[particle_index] = i + j * grid_dimensions.x;
     }
+}
+
+void thesis::shared_2d::sort_particles_by_cell(
+    void *sort_storage, size_t &sort_storage_size,
+    const int *associated_cells_in, int *associated_cells_out,
+    const int *particle_indices_in, int *particle_indices_out,
+    const size_t particle_count
+) {
+    cub::DeviceRadixSort::SortPairs(
+        sort_storage, sort_storage_size,
+        associated_cells_in, associated_cells_out,
+        particle_indices_in, particle_indices_out,
+        particle_count
+    );
 }
