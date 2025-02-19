@@ -20,7 +20,11 @@ get_duration () {
     local dim_y=$2
     local version=$3
     local distribution=$4
-    local time_keyword="took"
+    if [[ ${version} -eq 0 ]]; then
+        local time_keyword="Global took"
+    else
+        local time_keyword="Shared took"
+    fi
     run ${dim_x} ${dim_y} ${version} ${distribution} | grep -i ${time_keyword} | tr -cd 0-9
 }
 

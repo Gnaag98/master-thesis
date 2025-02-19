@@ -217,7 +217,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        // Wait for the kernel to finish.
+        // Wait for the kernel(s) to finish before destructing the timer.
         cudaDeviceSynchronize();
     }
 

@@ -19,8 +19,12 @@ get_duration () {
     local dim=$1
     local version=$2
     local distribution=$3
-    local time_keyword="took"
-    run ${dim} ${version} ${distribution} | grep -i ${time_keyword} | tr -cd 0-9
+    if [[ ${version} -eq 0 ]]; then
+        local time_keyword="Global took"
+    else
+        local time_keyword="Shared took"
+    fi
+    run ${dim} ${version} ${distribution} | grep -i "${time_keyword}" | tr -cd 0-9
 }
 
 echo_with_comma () {
