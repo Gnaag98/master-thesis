@@ -21,6 +21,14 @@ namespace thesis::shared_2d {
         const int *particle_indices_in, int *particle_indices_out,
         size_t particle_count
     );
+
+    __global__
+    void associate_blocks_with_cells(
+        size_t particle_count, size_t max_block_count,
+        const int *associated_cell_indices, int *cell_indices,
+        int *first_particle_indices, int *cell_particle_counts,
+        int *block_count
+    );
 };
 
 #endif

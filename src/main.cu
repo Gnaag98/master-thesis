@@ -129,6 +129,29 @@ int main(int argc, char *argv[]) {
     );
     cudaMalloc(&sort_storage, sort_storage_size);
 
+    // Shared: Block data for the density kernel.
+    const auto max_block_count = (
+        (grid_dimensions.x - 1) * (grid_dimensions.y - 1)
+    );
+    auto h_block_cell_indices = HostIntArray{
+        static_cast<size_t>(max_block_count)
+    };
+    auto d_block_cell_indices = DeviceIntArray{ h_block_cell_indices };
+    auto h_block_first_particle_indices = HostIntArray{
+        static_cast<size_t>(max_block_count)
+    };
+    auto d_block_first_particle_indices = DeviceIntArray{
+        h_block_first_particle_indices
+    };
+    auto h_block_cell_particle_counts = HostIntArray{
+        static_cast<size_t>(max_block_count)
+    };
+    auto d_block_cell_particle_counts = DeviceIntArray{
+        h_block_cell_particle_counts
+    };
+    auto d_block_count_shared = (int *){};
+    cudaMalloc(&d_block_count_shared, sizeof(int));
+
     // Limit the lifetime of the timer using a scope.
     {
         auto kernel_timer = thesis::Timer{ version_name };
@@ -154,6 +177,17 @@ int main(int argc, char *argv[]) {
                 d_particle_indices.i, d_particle_indices_sorted.i,
                 particle_count
             );
+            associate_blocks_with_cells<<<1, 1>>>(
+                particle_count, block_size, d_associated_cells_sorted.i,
+                d_block_cell_indices.i, d_block_first_particle_indices.i,
+                d_block_cell_particle_counts.i, d_block_count_shared
+            );
+            auto block_count = int{};
+            cudaMemcpy(
+                &block_count, d_block_count_shared, sizeof(int), 
+                cudaMemcpyDeviceToHost
+            );
+            std::cout << "new block_count: " << block_count << '\n';
             break;
         }
         default:
@@ -166,16 +200,22 @@ int main(int argc, char *argv[]) {
     }
 
     cudaFree(sort_storage);
+    cudaFree(d_block_count_shared);
 
     // Save data to disk.
     if (should_save) {
         using namespace std::filesystem;
         h_particles.copy(d_particles);
         h_charge_densities.copy(d_charge_densities);
+
         h_particle_indices.copy(d_particle_indices);
         h_associated_cells.copy(d_associated_cells);
         h_particle_indices_sorted.copy(d_particle_indices_sorted);
         h_associated_cells_sorted.copy(d_associated_cells_sorted);
+
+        h_block_cell_indices.copy(d_block_cell_indices);
+        h_block_first_particle_indices.copy(d_block_first_particle_indices);
+        h_block_cell_particle_counts.copy(d_block_cell_particle_counts);
 
         std::cout << "Saving to disk.\n";
         const auto output_directory = path{ output_directory_name };
@@ -202,6 +242,10 @@ int main(int argc, char *argv[]) {
         h_associated_cells.save(output_directory / "associated_cells.npy");
         h_particle_indices_sorted.save(output_directory / "particle_indices_sorted.npy");
         h_associated_cells_sorted.save(output_directory / "associated_cells_sorted.npy");
+
+        h_block_cell_indices.save(output_directory / "block_cell_indices.npy");
+        h_block_first_particle_indices.save(output_directory / "block_first_particle_indices.npy");
+        h_block_cell_particle_counts.save(output_directory / "block_cell_particle_counts.npy");
     }
     std::cout << "Done\n";
 }

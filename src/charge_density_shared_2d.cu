@@ -59,3 +59,47 @@ void thesis::shared_2d::sort_particles_by_cell(
         particle_count
     );
 }
+
+__global__
+void thesis::shared_2d::associate_blocks_with_cells(
+    const size_t particle_count, const size_t max_block_count,
+    const int *associated_cell_indices, int *cell_indices,
+    int *first_particle_indices, int *cell_particle_counts, int *block_count
+) {
+    // Linear algorithm using only one thread.
+    if (blockIdx.x * blockDim.x + threadIdx.x != 0) {
+        return;
+    }
+
+    // Loop memory.
+    auto block_index = 0;
+    auto cell_index = associated_cell_indices[0];
+    auto first_particle_index = 0;
+    auto cell_particle_count = 0;
+
+    auto particle_index = 0;
+    while (particle_index < particle_count) {
+        const auto particle_cell_index = associated_cell_indices[particle_index];
+        if (particle_cell_index == cell_index) {
+            ++cell_particle_count;
+            ++particle_index;
+        } else {
+            // Store block data.
+            if (block_index >= max_block_count) {
+                return;
+            }
+            cell_indices[block_index] = cell_index;
+            first_particle_indices[block_index] = first_particle_index;
+            cell_particle_counts[block_index] = cell_particle_count;
+            ++block_index;
+            cell_index = associated_cell_indices[particle_index];
+            first_particle_index = particle_index;
+            cell_particle_count = 0;
+        }
+    }
+    // Store the last block data.
+    cell_indices[block_index] = cell_index;
+    first_particle_indices[block_index] = first_particle_index;
+    cell_particle_counts[block_index] = cell_particle_count;
+    *block_count = block_index + 1;
+}
