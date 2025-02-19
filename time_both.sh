@@ -54,10 +54,12 @@ duration_shared=()
 for dim in "${dimensions[@]}"; do
     echo "${dim}x${dim}"
     echo -n "  global "
-    duration_global+=($(get_duration ${dim} ${distribution} 0))
+    version=0
+    duration_global+=($(get_duration ${dim} ${version} ${distribution}))
     echo "done"
     echo -n "  shared "
-    duration_shared+=($(get_duration ${dim} ${distribution} 1))
+    version=1
+    duration_shared+=($(get_duration ${dim} ${version} ${distribution}))
     echo "done"
 done
 

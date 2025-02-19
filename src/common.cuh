@@ -1,15 +1,6 @@
 #ifndef AMITIS_COMMON_CUH
 #define AMITIS_COMMON_CUH
 
-// XXX: Hardcoded block_size.
-#ifndef DEBUG
-const auto block_size = 128;
-#else
-const auto block_size = 1;
-#endif
-
-#endif
-
 constexpr auto cell_coordinates(const float3 position, const int cell_size) {
     // XXX: Hardcoded half-cell shift due to one layer of ghost cells.
     return float3{
@@ -27,3 +18,5 @@ constexpr auto cell_index(const int3 cell_center,
     return i + (j * grid_dimensions.x)
              + (k * grid_dimensions.x * grid_dimensions.y);
 }
+
+#endif

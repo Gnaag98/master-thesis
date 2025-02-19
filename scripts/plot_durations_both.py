@@ -12,7 +12,7 @@ def main():
 
     with open(output_directory / 'durations_both.csv') as file:
         reader = csv.reader(file, quoting=csv.QUOTE_NONNUMERIC)
-        rows = [row[:-1] for row in reader]
+        rows = [row for row in reader]
     dimensions = rows[0]
     durations_global = np.array(rows[1])
     durations_shared = np.array(rows[2])
@@ -20,12 +20,20 @@ def main():
     difference = durations_global - durations_shared
     performance_gain = np.divide(difference, durations_global)
 
-    plt.plot(np.log2(dimensions), performance_gain*100, '*-')
-    plt.legend('global', 'shared')
-    plt.xticks(np.log2(dimensions))
-    plt.xlabel('log2(grid dimension) (square grid)')
-    plt.ylabel('Performance gain (%)')
-    plt.grid(True)
+    _, ax = plt.subplots()
+    ax.plot(np.log2(dimensions), durations_global, 'o-', label='Global')
+    ax.plot(np.log2(dimensions), durations_shared, '*-', label='Shared')
+    ax.set_xlabel('log2(grid dimension) (square grid)')
+    ax.set_ylabel('Duration (µs)')
+    ax.legend()
+    ax.grid(True)
+
+    _, ax = plt.subplots()
+    ax.plot(np.log2(dimensions), performance_gain*100, '*-')
+    ax.set_xticks(np.log2(dimensions))
+    ax.set_xlabel('log2(grid dimension) (square grid)')
+    ax.set_ylabel('Performance gain (%)')
+    ax.grid(True)
     plt.show()
 
 

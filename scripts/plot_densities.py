@@ -28,8 +28,9 @@ def plot_densities(file_directory: Path, version: str, grid_size_x: int,
     for j in range(grid_size_y):
         for i in range(grid_size_x):
             density = densities[j,i]
-            density_normalized = density / densities.max()
-            ax.add_patch(Rectangle(((i-1), (j-1)), 1, 1, facecolor=f'{1 - density_normalized}'))
+            if (densities.max() > 0):
+                density = density / densities.max()
+            ax.add_patch(Rectangle(((i-1), (j-1)), 1, 1, facecolor=f'{1 - density}'))
     # Plot borders to separate to distinguish the ghost cells.
     ax.add_patch(Rectangle((-1, -1), grid_size_x, grid_size_y, edgecolor='k', facecolor='none'))
     ax.add_patch(Rectangle((0, 0), grid_size_x-2, grid_size_y-2, edgecolor='r', facecolor='none'))

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def heatmap(grid_data: np.ndarray, figures_directory: Path):
+def heatmap(grid_data: np.ndarray, figure_filename: Path):
     grid_size_y, grid_size_x = grid_data.shape
     # Initialize size of figure before drawing rectangles since add_patch
     # doesn't resize the axes, including padding outside grid.
@@ -36,7 +36,7 @@ def heatmap(grid_data: np.ndarray, figures_directory: Path):
     ax.add_patch(Rectangle((-1, -1), grid_size_x, grid_size_y, edgecolor='k', facecolor='none'))
     ax.add_patch(Rectangle((0, 0), grid_size_x-2, grid_size_y-2, edgecolor='r', facecolor='none'))
     # Save the figure.
-    fig.savefig(figures_directory / f'charge_densities_global_error.png')
+    fig.savefig(figure_filename)
     plt.show()
 
 
@@ -63,10 +63,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('dim_x', type=int)
     parser.add_argument('dim_y', type=int)
+    parser.add_argument('version', type=int)
     args = parser.parse_args()
     # Grid parameters with ghost cells included.
     grid_size_x: int = args.dim_x + 2
     grid_size_y: int = args.dim_y + 2
+    if args.version == 0:
+        version = 'global'
+    else:
+        version = 'shared'
 
     # Directories relative to this file.
     directory = Path(__file__).parent
@@ -74,13 +79,15 @@ def main():
     run_directory = directory / 'output'
     figures_directory = directory / 'output'
     figures_directory.mkdir(exist_ok=True)
-    densities_filename_stem = 'charge_densities_global'
+    densities_filename_stem = f'charge_densities_{version}'
+    key_densities_filename_stem = f'charge_densities'
+    figure_filename = figures_directory / f'charge_densities_{version}_error.png'
 
     run_densities = get_densities_npy(
         run_directory / f'{densities_filename_stem}.npy', grid_size_x,
         grid_size_y)
     key_densities = get_densities_csv(
-        key_directory / f'{densities_filename_stem}.csv', grid_size_x,
+        key_directory / f'{key_densities_filename_stem}.csv', grid_size_x,
         grid_size_y)
     
     error = np.abs(run_densities - key_densities)
@@ -91,7 +98,7 @@ def main():
     print(f'max_error: {max_error}')
     print(f'avg_error: {mean_error}')
     if min_error or max_error:
-        heatmap(error, figures_directory)
+        heatmap(error, figure_filename)
 
 
 if __name__ == '__main__':
