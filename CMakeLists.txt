@@ -29,6 +29,7 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 target_compile_options(${PROJECT_NAME}
     PRIVATE -arch=sm_75
     PRIVATE --expt-relaxed-constexpr
+    PRIVATE --Werror=all-warnings
 )
 
 target_link_libraries(${PROJECT_NAME}
