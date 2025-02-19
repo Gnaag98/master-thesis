@@ -24,10 +24,10 @@ def main():
     output_directory = root_directory / 'output'
 
     # Get charge densities.
-    densities_global = np.load(output_directory / 'charge_densities_global.csv')
+    densities_global = np.load(output_directory / 'charge_densities_global.npy')
     densities_global = densities_global[0:grid_size_x*grid_size_y]
     densities_global: np.ndarray = np.reshape(densities_global, (-1, grid_size_x))
-    densities_shared = np.load(output_directory / 'charge_densities_shared.csv')
+    densities_shared = np.load(output_directory / 'charge_densities_shared.npy')
     densities_shared = densities_shared[0:grid_size_x*grid_size_y]
     densities_shared: np.ndarray = np.reshape(densities_shared, (-1, grid_size_x))
     absolute_errors = np.abs(densities_global - densities_shared)

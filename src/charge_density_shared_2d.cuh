@@ -27,7 +27,21 @@ namespace thesis::shared_2d {
         size_t particle_count, size_t max_block_count,
         const int *associated_cell_indices, int *cell_indices,
         int *first_particle_indices, int *cell_particle_counts,
-        int *block_count
+        int *block_count, int *max_particles_per_cell
+    );
+
+    __global__
+    /**
+     * Computes 2D charge density using global and shared memory.
+     * 
+     * NOTE: One block per associated cell.
+     */
+    void charge_density(
+        const float *pos_x, const float *pos_y, size_t particle_count,
+        float particle_charge, int3 grid_dimensions, int cell_size,
+        const int *particle_indices, const int *cell_indices,
+        const int *first_particle_indices, const int *cell_particle_counts,
+        float *densities
     );
 };
 

@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
     // XXX: Back to being hardcoded.
     const auto random_seed = 1;
 
-    if (argc < 8) {
+    if (argc < 10) {
         std::cerr << "Usage: "<< argv[0] <<
             " dim_x dim_y dim_z cell_size particles/cell version"
             " output_directory particle_distribution should_save"
@@ -83,8 +83,10 @@ int main(int argc, char *argv[]) {
 
     // Kernel block settings.
 #ifndef DEBUG
+    const auto block_size = 128;
     const auto block_count = (particle_count + block_size - 1) / block_size;
 #else
+    const auto block_size = 1;
     const auto block_count = 1;
 #endif
     std::cout << " <<<" << block_count << ", " << block_size << ">>>\n";
@@ -151,13 +153,15 @@ int main(int argc, char *argv[]) {
     };
     auto d_block_count_shared = (int *){};
     cudaMalloc(&d_block_count_shared, sizeof(int));
+    auto d_max_particles_per_cell_shared = (int *){};
+    cudaMalloc(&d_max_particles_per_cell_shared, sizeof(int));
 
     // Limit the lifetime of the timer using a scope.
     {
         auto kernel_timer = thesis::Timer{ version_name };
         // Run kernel.
         switch (selected_version) {
-        case Version::global:
+        case Version::global: {
             using namespace global_2d;
             charge_density<<<block_count, block_size>>>(
                 d_particles.pos_x, d_particles.pos_y, particle_count,
@@ -165,6 +169,7 @@ int main(int argc, char *argv[]) {
                 d_charge_densities.cells
             );
             break;
+        }
         case Version::shared: {
             using namespace shared_2d;
             associate_particles_with_cells<<<block_count, block_size>>>(
@@ -178,16 +183,33 @@ int main(int argc, char *argv[]) {
                 particle_count
             );
             associate_blocks_with_cells<<<1, 1>>>(
-                particle_count, block_size, d_associated_cells_sorted.i,
+                particle_count, max_block_count, d_associated_cells_sorted.i,
                 d_block_cell_indices.i, d_block_first_particle_indices.i,
-                d_block_cell_particle_counts.i, d_block_count_shared
+                d_block_cell_particle_counts.i, d_block_count_shared,
+                d_max_particles_per_cell_shared
             );
+            // Redefine launch parameters.
             auto block_count = int{};
+            auto max_particles_per_cell = int{};
             cudaMemcpy(
                 &block_count, d_block_count_shared, sizeof(int), 
                 cudaMemcpyDeviceToHost
             );
-            std::cout << "new block_count: " << block_count << '\n';
+            cudaMemcpy(
+                &max_particles_per_cell, d_max_particles_per_cell_shared,
+                sizeof(int), cudaMemcpyDeviceToHost
+            );
+            // TODO: Check if the block size benefits by being a multiple of 32.
+            const auto block_size = max_particles_per_cell;
+            const auto shared_size = 4 * block_size * sizeof(float);
+            std::cout << "<<<" << block_count << ", " << block_size << ", " << shared_size << ">>>\n";
+            charge_density<<<block_count, block_size, shared_size>>>(
+                d_particles.pos_x, d_particles.pos_y, particle_count,
+                particle_charge, grid_dimensions, cell_size,
+                d_particle_indices_sorted.i, d_block_cell_indices.i,
+                d_block_first_particle_indices.i,
+                d_block_cell_particle_counts.i, d_charge_densities.cells
+            );
             break;
         }
         default:
@@ -201,6 +223,7 @@ int main(int argc, char *argv[]) {
 
     cudaFree(sort_storage);
     cudaFree(d_block_count_shared);
+    cudaFree(d_max_particles_per_cell_shared);
 
     // Save data to disk.
     if (should_save) {
