@@ -132,6 +132,17 @@ int main(int argc, char *argv[]) {
     cudaMalloc(&sort_storage, sort_storage_size);
 
     // Shared: Block data for the density kernel.
+    auto h_particle_indices_rel_cell = HostIntArray{ particle_count };
+    auto d_particle_indices_rel_cell = DeviceIntArray{
+        h_particle_indices_rel_cell
+    };
+    auto h_particle_count_per_cell = HostIntArray{ particle_count };
+    auto d_particle_count_per_cell = DeviceIntArray{
+        h_particle_count_per_cell
+    };
+
+    // Shared: Block data for the density kernel (old).
+    // TODO: Remove when the density kernel is updated with other input.
     const auto max_block_count = (
         (grid_dimensions.x - 1) * (grid_dimensions.y - 1)
     );
@@ -158,7 +169,7 @@ int main(int argc, char *argv[]) {
 
     // Limit the lifetime of the timer using a scope.
     {
-        auto kernel_timer = thesis::Timer{ version_name };
+        auto kernel_timer = Timer{ version_name };
         // Run kernel.
         switch (selected_version) {
         case Version::global: {
@@ -188,6 +199,16 @@ int main(int argc, char *argv[]) {
                 d_block_cell_particle_counts.i, d_block_count_shared,
                 d_max_particles_per_cell_shared
             );
+
+            contextualize_cell_associations<<<
+                block_count,
+                block_size,
+                4 * block_size * sizeof(int)
+            >>>(
+                particle_count, d_associated_cells_sorted.i,
+                d_particle_indices_rel_cell.i, d_particle_count_per_cell.i
+            );
+
             // Redefine launch parameters.
             auto block_count = int{};
             auto max_particles_per_cell = int{};
@@ -201,7 +222,7 @@ int main(int argc, char *argv[]) {
             );
             // TODO: Check if the block size benefits by being a multiple of 32.
             const auto block_size = max_particles_per_cell;
-            const auto shared_size = 4 * block_size * sizeof(float);
+            const auto shared_size = 4 * block_size * sizeof(int);
             std::cout << "<<<" << block_count << ", " << block_size << ", " << shared_size << ">>>\n";
             charge_density<<<block_count, block_size, shared_size>>>(
                 d_particles.pos_x, d_particles.pos_y, particle_count,
@@ -229,7 +250,6 @@ int main(int argc, char *argv[]) {
     if (should_save) {
         using namespace std::filesystem;
         h_particles.copy(d_particles);
-        h_charge_densities.copy(d_charge_densities);
 
         h_particle_indices.copy(d_particle_indices);
         h_associated_cells.copy(d_associated_cells);
@@ -240,12 +260,30 @@ int main(int argc, char *argv[]) {
         h_block_first_particle_indices.copy(d_block_first_particle_indices);
         h_block_cell_particle_counts.copy(d_block_cell_particle_counts);
 
+        h_particle_indices_rel_cell.copy(d_particle_indices_rel_cell);
+        h_particle_count_per_cell.copy(d_particle_count_per_cell);
+
+        h_charge_densities.copy(d_charge_densities);
+
         std::cout << "Saving to disk.\n";
         const auto output_directory = path{ output_directory_name };
         create_directory(output_directory);
 
         h_particles.save_positions(output_directory / "positions.npz");
         
+
+        h_particle_indices.save(output_directory / "particle_indices.npy");
+        h_associated_cells.save(output_directory / "associated_cells.npy");
+        h_particle_indices_sorted.save(output_directory / "particle_indices_sorted.npy");
+        h_associated_cells_sorted.save(output_directory / "associated_cells_sorted.npy");
+
+        h_block_cell_indices.save(output_directory / "block_cell_indices.npy");
+        h_block_first_particle_indices.save(output_directory / "block_first_particle_indices.npy");
+        h_block_cell_particle_counts.save(output_directory / "block_cell_particle_counts.npy");
+        
+        h_particle_indices_rel_cell.save(output_directory / "particle_indices_rel_cell.npy");
+        h_particle_count_per_cell.save(output_directory / "particle_count_per_cell.npy");
+
         const auto densities_filename = ([selected_version](){
             auto filename = std::string("charge_densities");
             switch (selected_version) {
@@ -260,15 +298,6 @@ int main(int argc, char *argv[]) {
             return filename;
         })();
         h_charge_densities.save(output_directory / densities_filename);
-
-        h_particle_indices.save(output_directory / "particle_indices.npy");
-        h_associated_cells.save(output_directory / "associated_cells.npy");
-        h_particle_indices_sorted.save(output_directory / "particle_indices_sorted.npy");
-        h_associated_cells_sorted.save(output_directory / "associated_cells_sorted.npy");
-
-        h_block_cell_indices.save(output_directory / "block_cell_indices.npy");
-        h_block_first_particle_indices.save(output_directory / "block_first_particle_indices.npy");
-        h_block_cell_particle_counts.save(output_directory / "block_cell_particle_counts.npy");
     }
     std::cout << "Done\n";
 }

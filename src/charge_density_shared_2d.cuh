@@ -31,6 +31,12 @@ namespace thesis::shared_2d {
     );
 
     __global__
+    void contextualize_cell_associations(
+        size_t particle_count, const int *associated_cell_indices,
+        int *particle_indices_rel_cell, int *particle_count_per_cell
+    );
+
+    __global__
     /**
      * Computes 2D charge density using global and shared memory.
      * 
