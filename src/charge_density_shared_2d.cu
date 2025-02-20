@@ -126,6 +126,88 @@ void thesis::shared_2d::associate_blocks_with_cells(
 }
 
 __global__
+void thesis::shared_2d::contextualize_cell_associations(
+    const size_t particle_count, const int *associated_cell_indices,
+    int *particle_indices_rel_cell, int *particle_count_per_cell
+) {
+    // Grid-stride loop. Equivalent to regular if-statement grid is large enough
+    // to cover all iterations of the loop.
+    for (
+        auto global_index = threadIdx.x + blockIdx.x * blockDim.x;
+        global_index < particle_count;
+        global_index += blockDim.x * gridDim.x
+    ) {
+        extern __shared__ int s_memory[];
+        auto s_ptr = s_memory;
+        // Shared memory used as working memory for the single thread. Might
+        // speed up the algirithm by not having to access global memory, or
+        // unnecessary since the data would be cached after the first read.
+        auto s_cell_indices = s_ptr;
+        s_ptr += blockDim.x;
+        s_cell_indices[threadIdx.x] = associated_cell_indices[global_index];
+        __syncthreads();
+
+        // Shared memory populated by the single thread. Used by all threads
+        // to populate global memory.
+        auto s_particle_indices_rel_cell = s_ptr;
+        s_ptr += blockDim.x;
+        // Incrementing 0, 1, 2, ..., for each cell in block. Not to be
+        // confused with cell index.
+        auto s_cell_ids = s_ptr;
+        s_ptr += blockDim.x;
+        // Indexed with cell id, not index. Sized for worst case scenario with
+        // one cell per particle.
+        auto s_particle_count_per_cell_id = s_ptr;
+        s_ptr += blockDim.x;
+
+        // Linear algorithm using only one thread per block.
+        if (threadIdx.x == 0) {
+            // Unroll first iteration.
+            s_particle_indices_rel_cell[0] = 0;
+            s_cell_ids[0] = 0;
+
+            // Loop memory.
+            // Start on 1 since we already set the value for the first particle.
+            auto particle_index_rell_cell = 1;
+            auto cell_particle_count = 1;
+            auto cell_id = 0;
+            auto previous_cell_index = s_cell_indices[0];
+            // Don't iterate too far in the last block.
+            const auto block_particle_count = min(
+                blockDim.x,
+                static_cast<uint>(particle_count) - blockIdx.x * blockDim.x
+            );
+            for (auto i = 1u; i < block_particle_count; ++i) {
+                const auto cell_index = s_cell_indices[i];
+                if (cell_index == previous_cell_index) {
+                    ++cell_particle_count;
+                } else {
+                    // Store accumulated particle count for last cell.
+                    s_particle_count_per_cell_id[cell_id] = cell_particle_count;
+                    // Reset loop memory.
+                    particle_index_rell_cell = 0;
+                    cell_particle_count = 1;
+                    ++cell_id;
+                    previous_cell_index = cell_index;
+                }
+                // Store data for this particle.
+                s_particle_indices_rel_cell[i] = particle_index_rell_cell++;
+                s_cell_ids[i] = cell_id;
+            }
+            // Store data for the last cell.
+            s_particle_count_per_cell_id[cell_id] = cell_particle_count;
+        }
+        // Wait for shared memory to be filled before reading.
+        __syncthreads();
+        particle_indices_rel_cell[global_index]
+            = s_particle_indices_rel_cell[threadIdx.x];
+        const auto cell_id = s_cell_ids[threadIdx.x];
+        particle_count_per_cell[global_index]
+            = s_particle_count_per_cell_id[cell_id];
+    }
+}
+
+__global__
 void thesis::shared_2d::charge_density(
     const float *pos_x, const float *pos_y, size_t particle_count,
     float particle_charge, int3 grid_dimensions, int cell_size,
