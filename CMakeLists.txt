@@ -30,6 +30,7 @@ target_compile_options(${PROJECT_NAME}
     PRIVATE -arch=sm_75
     PRIVATE --expt-relaxed-constexpr
     PRIVATE --Werror=all-warnings
+    #PRIVATE -lineinfo
 )
 
 target_link_libraries(${PROJECT_NAME}

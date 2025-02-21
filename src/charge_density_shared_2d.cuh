@@ -23,14 +23,6 @@ namespace thesis::shared_2d {
     );
 
     __global__
-    void associate_blocks_with_cells(
-        size_t particle_count, size_t max_block_count,
-        const int *associated_cell_indices, int *cell_indices,
-        int *first_particle_indices, int *cell_particle_counts,
-        int *block_count, int *max_particles_per_cell
-    );
-
-    __global__
     void contextualize_cell_associations(
         size_t particle_count, const int *associated_cell_indices,
         int *particle_indices_rel_cell, int *particle_count_per_cell
@@ -40,13 +32,14 @@ namespace thesis::shared_2d {
     /**
      * Computes 2D charge density using global and shared memory.
      * 
-     * NOTE: One block per associated cell.
+     * NOTE: Must use same block size as the kernel that generated the
+     * contextual cell data.
      */
     void charge_density(
         const float *pos_x, const float *pos_y, size_t particle_count,
         float particle_charge, int3 grid_dimensions, int cell_size,
-        const int *particle_indices, const int *cell_indices,
-        const int *first_particle_indices, const int *cell_particle_counts,
+        const int *particle_indices, const int *associated_cells,
+        const int *indices_rel_cell, const int *particle_count_per_cell,
         float *densities
     );
 };

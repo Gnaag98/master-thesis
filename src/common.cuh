@@ -2,11 +2,13 @@
 #define AMITIS_COMMON_CUH
 
 constexpr auto cell_coordinates(const float3 position, const int cell_size) {
+    // Optimization validated in Nsight Compute.
+    const auto cell_size_inverse = 1.0f / cell_size;
     // XXX: Hardcoded half-cell shift due to one layer of ghost cells.
     return float3{
-        position.x / cell_size + 0.5f,
-        position.y / cell_size + 0.5f,
-        position.z / cell_size + 0.5f
+        position.x * cell_size_inverse + 0.5f,
+        position.y * cell_size_inverse + 0.5f,
+        position.z * cell_size_inverse + 0.5f
     };
 }
 
