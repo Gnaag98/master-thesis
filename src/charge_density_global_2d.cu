@@ -19,8 +19,8 @@ void thesis::global_2d::charge_density(
         const auto [ u, v, w ] = cell_coordinates(position, cell_size);
 
         // 2D index, or center of surrounding cell closest to the origin.
-        const auto i = static_cast<int>(floor(u));
-        const auto j = static_cast<int>(floor(v));
+        const auto i = static_cast<int>(u);
+        const auto j = static_cast<int>(v);
 
         // Centers of all surrounding cells, named relative the indices
         // (i,j,k) of the surrounding cell closest to the origin (cell_000).

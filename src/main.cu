@@ -141,35 +141,11 @@ int main(int argc, char *argv[]) {
         h_particle_count_per_cell
     };
 
-    // Shared: Block data for the density kernel (old).
-    // TODO: Remove when the density kernel is updated with other input.
-    const auto max_block_count = (
-        (grid_dimensions.x - 1) * (grid_dimensions.y - 1)
-    );
-    auto h_block_cell_indices = HostIntArray{
-        static_cast<size_t>(max_block_count)
-    };
-    auto d_block_cell_indices = DeviceIntArray{ h_block_cell_indices };
-    auto h_block_first_particle_indices = HostIntArray{
-        static_cast<size_t>(max_block_count)
-    };
-    auto d_block_first_particle_indices = DeviceIntArray{
-        h_block_first_particle_indices
-    };
-    auto h_block_cell_particle_counts = HostIntArray{
-        static_cast<size_t>(max_block_count)
-    };
-    auto d_block_cell_particle_counts = DeviceIntArray{
-        h_block_cell_particle_counts
-    };
-    auto d_block_count_shared = (int *){};
-    cudaMalloc(&d_block_count_shared, sizeof(int));
-    auto d_max_particles_per_cell_shared = (int *){};
-    cudaMalloc(&d_max_particles_per_cell_shared, sizeof(int));
-
     // Limit the lifetime of the timer using a scope.
     {
-        auto kernel_timer = Timer{ version_name };
+        // Wait for any previous kernel to finish before starting the timer.
+        cudaDeviceSynchronize();
+        const auto kernel_timer = Timer{ version_name };
         // Run kernel.
         switch (selected_version) {
         case Version::global: {
@@ -183,54 +159,51 @@ int main(int argc, char *argv[]) {
         }
         case Version::shared: {
             using namespace shared_2d;
-            associate_particles_with_cells<<<block_count, block_size>>>(
-                d_particles.pos_x, d_particles.pos_y, particle_count, grid_dimensions,
-                cell_size, d_associated_cells.i
-            );
-            sort_particles_by_cell(
-                sort_storage, sort_storage_size,
-                d_associated_cells.i, d_associated_cells_sorted.i,
-                d_particle_indices.i, d_particle_indices_sorted.i,
-                particle_count
-            );
-            associate_blocks_with_cells<<<1, 1>>>(
-                particle_count, max_block_count, d_associated_cells_sorted.i,
-                d_block_cell_indices.i, d_block_first_particle_indices.i,
-                d_block_cell_particle_counts.i, d_block_count_shared,
-                d_max_particles_per_cell_shared
-            );
-
-            contextualize_cell_associations<<<
-                block_count,
-                block_size,
-                4 * block_size * sizeof(int)
-            >>>(
-                particle_count, d_associated_cells_sorted.i,
-                d_particle_indices_rel_cell.i, d_particle_count_per_cell.i
-            );
-
-            // Redefine launch parameters.
-            auto block_count = int{};
-            auto max_particles_per_cell = int{};
-            cudaMemcpy(
-                &block_count, d_block_count_shared, sizeof(int), 
-                cudaMemcpyDeviceToHost
-            );
-            cudaMemcpy(
-                &max_particles_per_cell, d_max_particles_per_cell_shared,
-                sizeof(int), cudaMemcpyDeviceToHost
-            );
-            // TODO: Check if the block size benefits by being a multiple of 32.
-            const auto block_size = max_particles_per_cell;
-            const auto shared_size = 4 * block_size * sizeof(int);
-            std::cout << "<<<" << block_count << ", " << block_size << ", " << shared_size << ">>>\n";
-            charge_density<<<block_count, block_size, shared_size>>>(
-                d_particles.pos_x, d_particles.pos_y, particle_count,
-                particle_charge, grid_dimensions, cell_size,
-                d_particle_indices_sorted.i, d_block_cell_indices.i,
-                d_block_first_particle_indices.i,
-                d_block_cell_particle_counts.i, d_charge_densities.cells
-            );
+            {
+                //const auto timer = Timer{ "Associate" };
+                associate_particles_with_cells<<<block_count, block_size>>>(
+                    d_particles.pos_x, d_particles.pos_y, particle_count, grid_dimensions,
+                    cell_size, d_associated_cells.i
+                );
+                //cudaDeviceSynchronize();
+            }
+            {
+                //const auto timer = Timer{ "Sort" };
+                sort_particles_by_cell(
+                    sort_storage, sort_storage_size,
+                    d_associated_cells.i, d_associated_cells_sorted.i,
+                    d_particle_indices.i, d_particle_indices_sorted.i,
+                    particle_count
+                );
+                //cudaDeviceSynchronize();
+            }
+            {
+                //const auto timer = Timer{ "Contextualize" };
+                contextualize_cell_associations<<<
+                    block_count,
+                    block_size,
+                    4 * block_size * sizeof(int)
+                >>>(
+                    particle_count, d_associated_cells_sorted.i,
+                    d_particle_indices_rel_cell.i, d_particle_count_per_cell.i
+                );
+                //cudaDeviceSynchronize();
+            }
+            {
+                //const auto timer = Timer{ "Density" };
+                charge_density<<<
+                    block_count,
+                    block_size,
+                    4 * block_size * sizeof(float)
+                >>>(
+                    d_particles.pos_x, d_particles.pos_y, particle_count,
+                    particle_charge, grid_dimensions, cell_size,
+                    d_particle_indices_sorted.i, d_associated_cells_sorted.i,
+                    d_particle_indices_rel_cell.i, d_particle_count_per_cell.i,
+                    d_charge_densities.cells
+                );
+                //cudaDeviceSynchronize();
+            }
             break;
         }
         default:
@@ -243,8 +216,6 @@ int main(int argc, char *argv[]) {
     }
 
     cudaFree(sort_storage);
-    cudaFree(d_block_count_shared);
-    cudaFree(d_max_particles_per_cell_shared);
 
     // Save data to disk.
     if (should_save) {
@@ -255,10 +226,6 @@ int main(int argc, char *argv[]) {
         h_associated_cells.copy(d_associated_cells);
         h_particle_indices_sorted.copy(d_particle_indices_sorted);
         h_associated_cells_sorted.copy(d_associated_cells_sorted);
-
-        h_block_cell_indices.copy(d_block_cell_indices);
-        h_block_first_particle_indices.copy(d_block_first_particle_indices);
-        h_block_cell_particle_counts.copy(d_block_cell_particle_counts);
 
         h_particle_indices_rel_cell.copy(d_particle_indices_rel_cell);
         h_particle_count_per_cell.copy(d_particle_count_per_cell);
@@ -277,10 +244,6 @@ int main(int argc, char *argv[]) {
         h_particle_indices_sorted.save(output_directory / "particle_indices_sorted.npy");
         h_associated_cells_sorted.save(output_directory / "associated_cells_sorted.npy");
 
-        h_block_cell_indices.save(output_directory / "block_cell_indices.npy");
-        h_block_first_particle_indices.save(output_directory / "block_first_particle_indices.npy");
-        h_block_cell_particle_counts.save(output_directory / "block_cell_particle_counts.npy");
-        
         h_particle_indices_rel_cell.save(output_directory / "particle_indices_rel_cell.npy");
         h_particle_count_per_cell.save(output_directory / "particle_count_per_cell.npy");
 
