@@ -1,24 +1,11 @@
 #!/bin/bash
 
-run () {
-    local dim_x=$1
-    local dim_y=$1
-    local dim_z=1
-    local cell_size=64
-    local particles_per_cell=$2
-    local version=1
-    local output="../output"
-    local distribution=$3
-    local should_save=0
-    ./master_thesis ${dim_x} ${dim_y} ${dim_z} ${cell_size} \
-        ${particles_per_cell} ${version} ${output} ${distribution} \
-        ${should_save}
-}
-
 get_duration () {
     local program_output=$1
     local time_keyword="$2 took"
-    echo "${program_output}" | grep -i "${time_keyword}" | tr -cd 0-9
+    echo "${program_output}" \
+        | grep -i "${time_keyword}" \
+        | tr -cd 0-9
 }
 
 echo_with_comma () {
@@ -26,23 +13,52 @@ echo_with_comma () {
     echo "$*"
 }
 
-distribution=${1:-0}
-particles_per_cell=${2:-16}
-
 ./build.sh
 if [ $? -ne 0 ]; then
     exit 1
 fi
 
-cd build
+distribution=uniform
+particles_per_cell=16
+
+# Parse arguments to remove those overwritten by this script.
+args=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -d)
+            # Replace default with user defined value.
+            distribution=$2
+            shift
+            shift
+            ;;
+        -p)
+            # Replace default with user defined value.
+            particles_per_cell=$2
+            shift
+            shift
+            ;;
+        -v)
+            # No reason to specify a version when shared will be run.
+            shift
+            shift
+            ;;
+        *)
+            args+=($1)
+            shift
+            ;;
+    esac
+done
 
 echo -n "Selected particle distribution: "
 case ${distribution} in
-    0)
+    uniform)
         echo uniform
         ;;
-    1)
+    pattern_2d)
         echo 2D pattern
+        ;;
+    *)
+        echo file
         ;;
 esac
 
@@ -66,7 +82,8 @@ durations_contextualize=()
 durations_density=()
 for ((dim = ${min_dimensions}; dim <= ${max_dimension}; dim += 128)) do
     echo -n "${dim}x${dim} "
-    program_output=$(run ${dim} ${particles_per_cell} ${distribution})
+    version=shared
+    program_output=$(build/master_thesis ${args[*]} -v ${version} -p ${particles_per_cell} -d ${distribution})
     echo "done"
 
     dimensions+=(${dim})
@@ -76,7 +93,6 @@ for ((dim = ${min_dimensions}; dim <= ${max_dimension}; dim += 128)) do
     durations_density+=($(get_duration "${program_output}" "density"))
 done
 
-cd ..
 filepath=output/durations_shared_${particles_per_cell}ppc.csv
 > ${filepath}
 echo_with_comma ${dimensions[@]} >> ${filepath}

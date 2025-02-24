@@ -97,7 +97,7 @@ namespace {
             ) {
                 _output_directory = path;
             } else {
-                throw std::runtime_error("Invalid output directory.");
+                throw std::runtime_error("Output directory does not exist.");
             }
             next = NextOptional::none;
             break;

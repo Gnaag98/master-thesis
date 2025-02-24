@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
         std::cerr << exception.what() << '\n';
         std::cerr << "usage " << argv[0] << " dim_x dim_y dim_z";
         std::cerr << " [-c cell_size] [-d distribution ] [-o output_directory]";
-        std::cerr << " [-p particles_per_cell] [-r random_seed] [-v global]\n";
+        std::cerr << " [-p particles_per_cell] [-r random_seed] [-v version]\n";
         return 1;
     }
 
@@ -234,8 +234,6 @@ int main(int argc, char *argv[]) {
         h_charge_densities.copy(d_charge_densities);
 
         std::cout << "Saving to disk.\n";
-        create_directory(*output_directory);
-
         h_particles.save_positions(*output_directory / "positions.npz");
         
 

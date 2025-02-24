@@ -1,31 +1,16 @@
 #!/bin/bash
 
-run () {
-    local dim_x=$1
-    local dim_y=$2
-    local dim_z=1
-    local cell_size=64
-    local particles_per_cell=16
-    local version=$3
-    local output="../output"
-    local distribution=$4
-    local should_save=0
-    ./master_thesis ${dim_x} ${dim_y} ${dim_z} ${cell_size} \
-        ${particles_per_cell} ${version} ${output} ${distribution} \
-        ${should_save}
-}
-
 get_duration () {
-    local dim_x=$1
-    local dim_y=$2
-    local version=$3
-    local distribution=$4
+    local version=$1
+    shift
     if [[ ${version} -eq 0 ]]; then
         local time_keyword="Global took"
     else
         local time_keyword="Shared took"
     fi
-    run ${dim_x} ${dim_y} ${version} ${distribution} | grep -i ${time_keyword} | tr -cd 0-9
+    build/master_thesis $* -v ${version} \
+        | grep -i "${time_keyword}" \
+        | tr -cd 0-9
 }
 
 echo_with_comma () {
@@ -33,27 +18,54 @@ echo_with_comma () {
     echo "$*"
 }
 
+run_count=$1
+# Remove script parameters before parsing program parameters.
+shift
+# Assumes positional arguments before optional arguments.
 dim_x=$1
 dim_y=$2
-version=$3
-distribution=$4
-run_count=$5
 
 ./build.sh
 if [ $? -ne 0 ]; then
     exit 1
 fi
 
-cd build
+distribution=uniform
+version=global
 
+# Parse arguments to remove those overwritten by this script.
+args=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -d)
+            # Replace default with user defined value.
+            distribution=$2
+            shift
+            shift
+            ;;
+        -v)
+            # Replace default with user defined value.
+            version=$2
+            shift
+            shift
+            ;;
+        *)
+            args+=($1)
+            shift
+            ;;
+    esac
+done
 
 echo -n "Selected particle distribution: "
 case ${distribution} in
-    0)
+    uniform)
         echo uniform
         ;;
-    1)
+    pattern_2d)
         echo 2D pattern
+        ;;
+    *)
+        echo file
         ;;
 esac
 
@@ -61,11 +73,10 @@ durations=()
 echo "Dimensions: ${dim_x}x${dim_y}"
 for i in $(seq 1 ${run_count}); do
     echo -n "Iteration ${i} "
-    durations+=($(get_duration ${dim_x} ${dim_y} ${version} ${distribution}))
+    durations+=($(get_duration ${version} ${args[*]} -d ${distribution}))
     echo "done"
 done
 
-cd ..
 filepath=output/durations_repeated.csv
 > ${filepath}
 echo_with_comma ${durations[@]} >> ${filepath}
