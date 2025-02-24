@@ -3,6 +3,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <time.h>
 
 #include "charge_density_global_2d.cuh"
 #include "charge_density_shared_2d.cuh"
@@ -11,12 +12,8 @@
 #include "int_array.cuh"
 #include "particles.cuh"
 #include "particle_generation.cuh"
+#include "program_options.cuh"
 #include "timer.cuh"
-
-enum class Version {
-    global = 0,
-    shared
-};
 
 int main(int argc, char *argv[]) {
     using namespace thesis;
@@ -25,45 +22,49 @@ int main(int argc, char *argv[]) {
     const auto particle_charge = 1.0f;
     // Number of outside layers of ghost cells.
     const auto ghost_layer_count = 1;
-    // XXX: Back to being hardcoded.
-    const auto random_seed = 1;
 
-    if (argc < 10) {
-        std::cerr << "Usage: "<< argv[0] <<
-            " dim_x dim_y dim_z cell_size particles/cell version"
-            " output_directory particle_distribution should_save"
-            " [positions_filename]\n";
+    // Default values for program arguments.
+    const auto default_cell_size = 64;
+    const auto default_particle_distribution = ParticleDistribution::uniform;
+    const auto default_particles_per_cell = 16;
+    const auto default_seed = static_cast<int>(time(nullptr));
+    const auto default_version = Version::global;
+
+    try {
+        program_options::parse(argc, argv);
+    } catch (const std::runtime_error &exception) {
+        std::cerr << exception.what() << '\n';
+        std::cerr << "usage " << argv[0] << " dim_x dim_y dim_z";
+        std::cerr << " [-c cell_size] [-d distribution ] [-o output_directory]";
+        std::cerr << " [-p particles_per_cell] [-r random_seed] [-v global]\n";
         return 1;
     }
 
-    const auto simulation_dimensions = int3{
-        std::stoi(argv[1]),
-        std::stoi(argv[2]),
-        std::stoi(argv[3])
-    };
-    const auto cell_size = std::stoi(argv[4]);
-    const auto particles_per_cell = std::stoi(argv[5]);
-    const auto selected_version = Version{ std::stoi(argv[6]) };
-    const auto output_directory_name = argv[7];
-    const auto particle_distribution = ParticleDistribution{
-        std::stoi(argv[8])
-    };
-    const auto should_save = std::stoi(argv[9]);
-
-    const auto positions_filepath = (
-        argc > 10 ? std::filesystem::path{ argv[10] } : ""
+    const auto simulation_dimensions = program_options::simulation_dimensions();
+    const auto cell_size = (
+        program_options::cell_size().value_or(default_cell_size)
     );
-    if (particle_distribution == ParticleDistribution::file
-        && positions_filepath.empty()
-    ) {
-        std::cerr << "Filename needed when generating from file.\n";
-        return 1;
-    }
+    const auto particle_distribution = (
+        program_options::distribution().value_or(default_particle_distribution)
+    );
+    const auto positions_filepath = program_options::distribution_filepath();
+    const auto output_directory = program_options::output_directory();
+    const auto particles_per_cell = (
+        program_options::particles_per_cell().value_or(
+            default_particles_per_cell
+        )
+    );
+    const auto random_seed = (
+        program_options::random_seed().value_or(default_seed)
+    );
+    const auto version = (
+        program_options::version().value_or(default_version)
+    );
 
     const auto version_name = (
-        (selected_version == Version::global) ? "Global" : "Shared"
+        (version == Version::global) ? "Global" : "Shared"
     );
-    std::cout << version_name << '\n';
+    std::cout << version_name << " version with seed " << random_seed << '\n';
 
     // The complete grid includes ghost layers around the simulation grid.
     const auto grid_dimensions = int3{
@@ -147,7 +148,7 @@ int main(int argc, char *argv[]) {
         cudaDeviceSynchronize();
         const auto kernel_timer = Timer{ version_name };
         // Run kernel.
-        switch (selected_version) {
+        switch (version) {
         case Version::global: {
             using namespace global_2d;
             charge_density<<<block_count, block_size>>>(
@@ -218,7 +219,7 @@ int main(int argc, char *argv[]) {
     cudaFree(sort_storage);
 
     // Save data to disk.
-    if (should_save) {
+    if (output_directory) {
         using namespace std::filesystem;
         h_particles.copy(d_particles);
 
@@ -233,23 +234,22 @@ int main(int argc, char *argv[]) {
         h_charge_densities.copy(d_charge_densities);
 
         std::cout << "Saving to disk.\n";
-        const auto output_directory = path{ output_directory_name };
-        create_directory(output_directory);
+        create_directory(*output_directory);
 
-        h_particles.save_positions(output_directory / "positions.npz");
+        h_particles.save_positions(*output_directory / "positions.npz");
         
 
-        h_particle_indices.save(output_directory / "particle_indices.npy");
-        h_associated_cells.save(output_directory / "associated_cells.npy");
-        h_particle_indices_sorted.save(output_directory / "particle_indices_sorted.npy");
-        h_associated_cells_sorted.save(output_directory / "associated_cells_sorted.npy");
+        h_particle_indices.save(*output_directory / "particle_indices.npy");
+        h_associated_cells.save(*output_directory / "associated_cells.npy");
+        h_particle_indices_sorted.save(*output_directory / "particle_indices_sorted.npy");
+        h_associated_cells_sorted.save(*output_directory / "associated_cells_sorted.npy");
 
-        h_particle_indices_rel_cell.save(output_directory / "particle_indices_rel_cell.npy");
-        h_particle_count_per_cell.save(output_directory / "particle_count_per_cell.npy");
+        h_particle_indices_rel_cell.save(*output_directory / "particle_indices_rel_cell.npy");
+        h_particle_count_per_cell.save(*output_directory / "particle_count_per_cell.npy");
 
-        const auto densities_filename = ([selected_version](){
+        const auto densities_filename = ([version](){
             auto filename = std::string("charge_densities");
-            switch (selected_version) {
+            switch (version) {
             case Version::global:
                 filename += "_global";
                 break;
@@ -260,7 +260,7 @@ int main(int argc, char *argv[]) {
             filename += ".npy";
             return filename;
         })();
-        h_charge_densities.save(output_directory / densities_filename);
+        h_charge_densities.save(*output_directory / densities_filename);
     }
     std::cout << "Done\n";
 }
