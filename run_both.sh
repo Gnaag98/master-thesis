@@ -1,30 +1,41 @@
 #!/bin/bash
 
-dim_x=$1
-dim_y=$2
-dim_z=$3
-cell_size=$4
-particles_per_cell=$5
-distribution=$6
-should_save=$7
-filepath=$8
-
 ./build.sh
 if [ $? -ne 0 ]; then
     exit 1
 fi
 
-cd build
-./master_thesis ${dim_x} ${dim_y} ${dim_z} ${cell_size} ${particles_per_cell} \
-    0 ../output ${distribution} ${should_save} ../${filepath}
+# Make sure both versions use the same seed.
+random_seed=$RANDOM
+
+# Parse arguments to remove those overwritten by this script.
+args=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -r)
+            # Replace generated seed with user defined seed.
+            random_seed=$2
+            shift
+            shift
+            ;;
+        -v)
+            # No reason to specify a version when both version will be run.
+            shift
+            shift
+            ;;
+        *)
+            args+=($1)
+            shift
+            ;;
+    esac
+done
+
+build/master_thesis ${args[*]} -r ${random_seed} -v global
 if [ $? -ne 0 ]; then
-    cd ..
     exit 1
 fi
-./master_thesis ${dim_x} ${dim_y} ${dim_z} ${cell_size} ${particles_per_cell} \
-    1 ../output ${distribution} ${should_save} ../${filepath}
+
+build/master_thesis ${args[*]} -r ${random_seed} -v shared
 if [ $? -ne 0 ]; then
-    cd ..
     exit 1
 fi
-cd ..

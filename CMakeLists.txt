@@ -18,6 +18,8 @@ add_executable(${PROJECT_NAME}
     src/charge_density_shared_2d.cuh
     src/timer.cu
     src/timer.cuh
+    src/program_options.cu
+    src/program_options.cuh
 )
 
 target_include_directories(${PROJECT_NAME}

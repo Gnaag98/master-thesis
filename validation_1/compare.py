@@ -63,15 +63,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('dim_x', type=int)
     parser.add_argument('dim_y', type=int)
-    parser.add_argument('version', type=int)
+    parser.add_argument('version', type=str)
     args = parser.parse_args()
     # Grid parameters with ghost cells included.
     grid_size_x: int = args.dim_x + 2
     grid_size_y: int = args.dim_y + 2
-    if args.version == 0:
-        version = 'global'
-    else:
-        version = 'shared'
+    version: str = args.version
 
     # Directories relative to this file.
     directory = Path(__file__).parent

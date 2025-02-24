@@ -2,6 +2,7 @@
 #define THESIS_PARTICLE_GENERATION_CUH
 
 #include <filesystem>
+#include <optional>
 
 #include "particles.cuh"
 
@@ -18,7 +19,7 @@ namespace thesis {
         const int3 simulation_dimensions, const int cell_size,
         const int particles_per_cell, const float particle_charge,
         const int random_seed, const ParticleDistribution distribution,
-        std::filesystem::path positions_filepath
+        std::optional<std::filesystem::path> positions_filepath
     ) -> HostParticles;
 };
 

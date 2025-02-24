@@ -1,31 +1,16 @@
 #!/bin/bash
 
-run () {
-    local dim_x=$1
-    local dim_y=$1
-    local dim_z=1
-    local cell_size=64
-    local particles_per_cell=$2
-    local version=$3
-    local output="../output"
-    local distribution=$4
-    local should_save=0
-    ./master_thesis ${dim_x} ${dim_y} ${dim_z} ${cell_size} \
-        ${particles_per_cell} ${version} ${output} ${distribution} \
-        ${should_save}
-}
-
 get_duration () {
-    local dim=$1
-    local particles_per_cell=$2
-    local version=$3
-    local distribution=$4
+    local version=$1
+    shift
     if [[ ${version} -eq 0 ]]; then
         local time_keyword="Global took"
     else
         local time_keyword="Shared took"
     fi
-    run ${dim} ${particles_per_cell} ${version} ${distribution} | grep -i "${time_keyword}" | tr -cd 0-9
+    build/master_thesis $* -v ${version} \
+        | grep -i "${time_keyword}" \
+        | tr -cd 0-9
 }
 
 echo_with_comma () {
@@ -33,24 +18,52 @@ echo_with_comma () {
     echo "$*"
 }
 
-distribution=${1:-0}
-particles_per_cell=${2:-16}
-
 ./build.sh
 if [ $? -ne 0 ]; then
     exit 1
 fi
 
-cd build
+distribution=uniform
+particles_per_cell=16
 
+# Parse arguments to remove those overwritten by this script.
+args=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -d)
+            # Replace default with user defined value.
+            distribution=$2
+            shift
+            shift
+            ;;
+        -p)
+            # Replace default with user defined value.
+            particles_per_cell=$2
+            shift
+            shift
+            ;;
+        -v)
+            # No reason to specify a version when both version will be run.
+            shift
+            shift
+            ;;
+        *)
+            args+=($1)
+            shift
+            ;;
+    esac
+done
 
 echo -n "Selected particle distribution: "
 case ${distribution} in
-    0)
+    uniform)
         echo uniform
         ;;
-    1)
+    pattern_2d)
         echo 2D pattern
+        ;;
+    *)
+        echo file
         ;;
 esac
 
@@ -74,16 +87,15 @@ for ((dim = ${min_dimensions}; dim <= ${max_dimension}; dim += 128)) do
     dimensions+=(${dim})
     echo "${dim}x${dim}"
     echo -n "  global "
-    version=0
-    duration_global+=($(get_duration ${dim} ${particles_per_cell} ${version} ${distribution}))
+    version=global
+    duration_global+=($(get_duration ${version} ${args[*]} -p ${particles_per_cell} -d ${distribution}))
     echo "done"
     echo -n "  shared "
-    version=1
-    duration_shared+=($(get_duration ${dim} ${particles_per_cell} ${version} ${distribution}))
+    version=shared
+    duration_shared+=($(get_duration ${version} ${args[*]} -p ${particles_per_cell} -d ${distribution}))
     echo "done"
 done
 
-cd ..
 filepath=output/durations_both_${particles_per_cell}ppc.csv
 > ${filepath}
 echo_with_comma ${dimensions[@]} >> ${filepath}
