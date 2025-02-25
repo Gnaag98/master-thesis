@@ -20,12 +20,12 @@ namespace {
     }
 }
 
-thesis::HostParticles::HostParticles(const int count, const float charge)
-: pos_x(count), pos_y(count), pos_z(count), charge{ charge } {}
+thesis::HostParticles::HostParticles(const int count)
+: pos_x(count), pos_y(count), pos_z(count) {}
 
 thesis::HostParticles::HostParticles(
-    const std::filesystem::path positions_filepath, const float charge
-) : charge{ charge } {
+    const std::filesystem::path positions_filepath
+) {
     auto file = std::ifstream{ positions_filepath };
     if (!file.is_open()) {
         throw std::runtime_error("Could not open particle positions file.");
@@ -46,7 +46,7 @@ void thesis::HostParticles::copy(const DeviceParticles &particles) {
     cudaMemcpy(pos_z.data(), particles.pos_z, size, cudaMemcpyDeviceToHost);
 }
 
-void thesis::HostParticles::save_positions(std::filesystem::path filepath) {
+void thesis::HostParticles::save(std::filesystem::path filepath) {
     const auto shape = std::vector{ pos_x.size() };
     cnpy::npz_save(filepath, "pos_x", pos_x.data(), shape);
     cnpy::npz_save(filepath, "pos_y", pos_y.data(), shape, "a");

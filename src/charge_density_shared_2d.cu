@@ -162,10 +162,10 @@ void thesis::shared_2d::contextualize_cell_associations(
 __global__
 void thesis::shared_2d::charge_density(
     const float *pos_x, const float *pos_y, const size_t particle_count,
-    const float particle_charge, const int3 grid_dimensions,
-    const int cell_size, const int *particle_indices,
-    const int *associated_cells, const int *indices_rel_cell,
-    const int *particle_count_per_cell, float *densities
+    const int3 grid_dimensions, const int cell_size,
+    const int *particle_indices, const int *associated_cells,
+    const int *indices_rel_cell, const int *particle_count_per_cell,
+    float *densities
 ) {
     // Grid-stride loop. Equivalent to regular if-statement grid is large enough
     // to cover all iterations of the loop.
@@ -214,10 +214,10 @@ void thesis::shared_2d::charge_density(
         };
 
         // Weighted sum of the particle's charge for this particle.
-        density(0, threadIdx.x) = particle_charge * cell_00_weight;
-        density(1, threadIdx.x) = particle_charge * cell_10_weight;
-        density(2, threadIdx.x) = particle_charge * cell_01_weight;
-        density(3, threadIdx.x) = particle_charge * cell_11_weight;
+        density(0, threadIdx.x) = cell_00_weight;
+        density(1, threadIdx.x) = cell_10_weight;
+        density(2, threadIdx.x) = cell_01_weight;
+        density(3, threadIdx.x) = cell_11_weight;
         // Wait until the shared memory is filled.
         __syncthreads();
 

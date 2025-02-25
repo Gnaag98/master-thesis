@@ -44,9 +44,9 @@ def main():
                 data[dim]['dim_x'] = row[0]
                 data[dim]['dim_y'] = row[1]
                 data[dim]['particles'] = row[3]
-                data[dim]['product'] = row[4]
-                data[dim]['sum'] = []
-            data[dim]['sum'].append(row[5])
+                data[dim]['expected'] = row[4]
+                data[dim]['computed'] = []
+            data[dim]['computed'].append(row[5])
             iteration = int(row[2])
 
         iteration_count = iteration + 1
@@ -54,20 +54,20 @@ def main():
         # Compute error.
         print(f'Relative error ({ppc} particles per cell)')
         for v in data.values():
-            v['sum'] = np.array(v['sum'])
-            v['error'] = v['product'] - v['sum']
+            v['computed'] = np.array(v['computed'])
+            v['error'] = v['expected'] - v['computed']
             v['error_min'] = np.min(v['error'])
             v['error_max'] = np.max(v['error'])
             v['error_mean'] = np.mean(v['error'])
-            print(f"  {v['dim_x']}x{v['dim_y']}: {v['error_mean'] / v['product']}")
+            print(f"  {v['dim_x']}x{v['dim_y']}: {v['error_mean'] / v['expected']}")
 
         # Plot
         ticks = np.arange(len(data))
         bar_width = 0.25
-        bar_product = [v['product'] for v in data.values()]
-        bar_min = np.divide([v['error_min'] for v in data.values()], bar_product)
-        bar_max = np.divide([v['error_max'] for v in data.values()], bar_product)
-        bar_mean = np.divide([v['error_mean'] for v in data.values()], bar_product)
+        bar_expected = [v['expected'] for v in data.values()]
+        bar_min = np.divide([v['error_min'] for v in data.values()], bar_expected)
+        bar_max = np.divide([v['error_max'] for v in data.values()], bar_expected)
+        bar_mean = np.divide([v['error_mean'] for v in data.values()], bar_expected)
         fig, ax = plt.subplots()
         ax.bar(ticks - bar_width, bar_min, bar_width, label='Min')
         ax.bar(ticks, bar_max, bar_width, label='Max')
@@ -75,7 +75,7 @@ def main():
         ax.set_xlabel('Cell configuration')
         ax.set_xticks(ticks)
         ax.set_xticklabels([k for k in data])
-        ax.set_ylabel('(product - sum) / product')
+        ax.set_ylabel('(expected - computed) / expected')
         ax.set_title(f'Total charge error, {iteration_count} iterations, {ppc} particles per cell')
         ax.grid(True, axis='y')
         ax.legend()

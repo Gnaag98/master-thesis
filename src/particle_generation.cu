@@ -17,8 +17,7 @@ namespace {
     /// Randomly generates a specified number of particels per cell.
     auto generate_particles_uniformly(
         const int3 simulation_dimensions, const int cell_size,
-        const int particles_per_cell, const float particle_charge,
-        const int random_seed
+        const int particles_per_cell, const int random_seed
     ) -> thesis::HostParticles {
         auto random_engine = std::default_random_engine(random_seed);
         auto position_distribution = std::uniform_real_distribution<float>(
@@ -29,9 +28,7 @@ namespace {
             * simulation_dimensions.x
             * simulation_dimensions.y
             * simulation_dimensions.z;
-        auto particles = thesis::HostParticles{
-            particle_count, particle_charge
-        };
+        auto particles = thesis::HostParticles{ particle_count };
         const auto particle_indices = get_shuffled_indices(
             particle_count, random_seed
         );
@@ -64,8 +61,7 @@ namespace {
     /// Randomly generates particles based on a density pattern.
     auto generate_particles_from_2d_pattern(
         const int3 simulation_dimensions, const int cell_size,
-        const int particles_per_cell, const float particle_charge,
-        const int random_seed
+        const int particles_per_cell, const int random_seed
     ) {
         /* 
         * The simulation box will be split into four zones that determine the
@@ -163,9 +159,7 @@ namespace {
         auto position_distribution = std::uniform_real_distribution<float>(
             0, cell_size
         );
-        auto particles = thesis::HostParticles{
-            particle_count, particle_charge
-        };
+        auto particles = thesis::HostParticles{ particle_count };
         const auto particle_indices = get_shuffled_indices(
             particle_count, random_seed
         );
@@ -194,37 +188,30 @@ namespace {
 
     /// Randomly generates a specified number of particels per cell.
     auto generate_particles_from_file(
-        const float particle_charge,
         const std::filesystem::path positions_filepath
     ) -> thesis::HostParticles {
-        auto particles = thesis::HostParticles{
-            positions_filepath, particle_charge
-        };
+        auto particles = thesis::HostParticles{ positions_filepath };
         return particles;
     }
 };
 
 auto thesis::generate_particles (
     const int3 simulation_dimensions, const int cell_size,
-    const int particles_per_cell, const float particle_charge,
-    const int random_seed, const ParticleDistribution distribution,
+    const int particles_per_cell, const int random_seed,
+    const ParticleDistribution distribution,
     const std::optional<std::filesystem::path> positions_filepath
 ) -> thesis::HostParticles {
     switch (distribution) {
     case ParticleDistribution::uniform:
         return generate_particles_uniformly(
-            simulation_dimensions, cell_size, particles_per_cell,
-            particle_charge, random_seed
+            simulation_dimensions, cell_size, particles_per_cell, random_seed
         );
     case ParticleDistribution::pattern_2d:
         return generate_particles_from_2d_pattern(
-            simulation_dimensions, cell_size, particles_per_cell,
-            particle_charge, random_seed
+            simulation_dimensions, cell_size, particles_per_cell, random_seed
         );
     case ParticleDistribution::file:
-        return generate_particles_from_file(
-            particle_charge, *positions_filepath
-        );
+        return generate_particles_from_file(*positions_filepath);
     
     default:
         throw std::runtime_error("Unhandled particle distribution enum option");

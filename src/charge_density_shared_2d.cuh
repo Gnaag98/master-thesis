@@ -37,10 +37,9 @@ namespace thesis::shared_2d {
      */
     void charge_density(
         const float *pos_x, const float *pos_y, size_t particle_count,
-        float particle_charge, int3 grid_dimensions, int cell_size,
-        const int *particle_indices, const int *associated_cells,
-        const int *indices_rel_cell, const int *particle_count_per_cell,
-        float *densities
+        int3 grid_dimensions, int cell_size, const int *particle_indices,
+        const int *associated_cells, const int *indices_rel_cell,
+        const int *particle_count_per_cell, float *densities
     );
 };
 

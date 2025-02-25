@@ -16,9 +16,8 @@ namespace thesis {
 
     /// Generates particles based on a specified distribution.
     auto generate_particles(
-        const int3 simulation_dimensions, const int cell_size,
-        const int particles_per_cell, const float particle_charge,
-        const int random_seed, const ParticleDistribution distribution,
+        int3 simulation_dimensions, int cell_size, int particles_per_cell,
+        int random_seed, ParticleDistribution distribution,
         std::optional<std::filesystem::path> positions_filepath
     ) -> HostParticles;
 };

@@ -11,16 +11,15 @@ namespace thesis {
         std::vector<float> pos_x;
         std::vector<float> pos_y;
         std::vector<float> pos_z;
-        float charge;
 
-        HostParticles(int count, float charge);
+        HostParticles(int count);
         HostParticles(
-            std::filesystem::path positions_filepath, float charge
+            std::filesystem::path positions_filepath
         );
 
         void copy(const DeviceParticles &particles);
 
-        void save_positions(std::filesystem::path filepath);
+        void save(std::filesystem::path filepath);
     };
 
     struct DeviceParticles {

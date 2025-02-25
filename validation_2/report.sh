@@ -10,14 +10,14 @@ parse_row () {
 parse_output () {
     # Echo header if there is nothing to parse.
     if [[ $# -eq 0 ]]; then
-        printf '"particles","product","sum"\n'
+        printf '"particles","expected","computed"\n'
         return 0
     fi
     local output=$( echo "$1" | grep -P '^\S+:' )
     local particles=$( parse_row "$( echo "${output}" | grep "count" )" )
-    local product=$( parse_row "$( echo "${output}" | grep "product" )" )
-    local sum=$( parse_row "$( echo "${output}" | grep "sum" )" )
-    printf '%s,%s,%s\n' "${particles}" "${product}" "${sum}"
+    local expected=$( parse_row "$( echo "${output}" | grep "expected" )" )
+    local computed=$( parse_row "$( echo "${output}" | grep "computed" )" )
+    printf '%s,%s,%s\n' "${particles}" "${expected}" "${computed}"
 }
 
 # Parse command line arguments.
