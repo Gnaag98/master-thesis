@@ -64,10 +64,12 @@ loop () {
     local filepath=$4
     local dim_z=1
     for ((i = 0; i < max_iterations; i++)); do
+        # Make sure each iteration uses a different seed.
+        local random_seed=$RANDOM
         printf '%dx%d ppc=%d i=%d\n' ${dim_x} ${dim_y} ${particles_per_cell} ${i}
         local output=$( \
             ${directory}/run.sh ${dim_x} ${dim_y} ${dim_z} -d ${distribution} \
-            -p ${particles_per_cell} -v ${version}
+            -p ${particles_per_cell} -v ${version} -r ${random_seed}
         )
         if [[ $? -ne 0 ]]; then
             exit 1
@@ -77,7 +79,31 @@ loop () {
     done
 }
 
+particles_per_cell=11
+filepath=$( create_file ${particles_per_cell} )
+for dim in 256 512 1024 2048; do
+    loop ${dim} ${dim} ${particles_per_cell} ${filepath}
+done
+
+particles_per_cell=13
+filepath=$( create_file ${particles_per_cell} )
+for dim in 256 512 1024 2048; do
+    loop ${dim} ${dim} ${particles_per_cell} ${filepath}
+done
+
 particles_per_cell=16
+filepath=$( create_file ${particles_per_cell} )
+for dim in 256 512 1024 2048; do
+    loop ${dim} ${dim} ${particles_per_cell} ${filepath}
+done
+
+particles_per_cell=17
+filepath=$( create_file ${particles_per_cell} )
+for dim in 256 512 1024 2048; do
+    loop ${dim} ${dim} ${particles_per_cell} ${filepath}
+done
+
+particles_per_cell=19
 filepath=$( create_file ${particles_per_cell} )
 for dim in 256 512 1024 2048; do
     loop ${dim} ${dim} ${particles_per_cell} ${filepath}
@@ -90,16 +116,16 @@ for dim in 128 256 512 1024; do
 done
 
 particles_per_cell=17
-filepath=$( create_file ${particles_per_cell} )
+filepath=$( create_file "prime_${particles_per_cell}" )
 
-dim_x=4194301
+dim_x=1048573
 dim_y=1
 loop ${dim_x} ${dim_y} ${particles_per_cell} ${filepath}
 
-dim_x=1399
-dim_y=2999
+dim_x=1563
+dim_y=1861
 loop ${dim_x} ${dim_y} ${particles_per_cell} ${filepath}
 
 dim_x=1
-dim_y=4194301
+dim_y=1048573
 loop ${dim_x} ${dim_y} ${particles_per_cell} ${filepath}
