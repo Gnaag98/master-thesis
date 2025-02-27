@@ -2,8 +2,6 @@
 
 #include <cub/device/device_radix_sort.cuh>
 
-#include "common.cuh"
-
 namespace {
     /// https://graphics.stanford.edu/%7Eseander/bithacks.html#RoundUpPowerOf2
     constexpr
@@ -38,7 +36,7 @@ void thesis::shared_2d::initialize_particle_indices(
 
 __global__
 void thesis::shared_2d::associate_particles_with_cells(
-    const float *pos_x, const float *pos_y, const size_t particle_count,
+    const FP *pos_x, const FP *pos_y, const size_t particle_count,
     const int3 grid_dimensions, const int cell_size, int *cell_indices
 ) {
     // Grid-stride loop. Equivalent to regular if-statement if grid is large
@@ -49,7 +47,7 @@ void thesis::shared_2d::associate_particles_with_cells(
         particle_index += blockDim.x * gridDim.x
     ) {
         // Position in world coordinates.
-        const auto position = float3{
+        const auto position = FP3{
             pos_x[particle_index], pos_y[particle_index], 0
         };
         // Position in grid coordinates, with origin at the first cell center.
@@ -161,11 +159,11 @@ void thesis::shared_2d::contextualize_cell_associations(
 
 __global__
 void thesis::shared_2d::charge_density(
-    const float *pos_x, const float *pos_y, const size_t particle_count,
+    const FP *pos_x, const FP *pos_y, const size_t particle_count,
     const int3 grid_dimensions, const int cell_size,
     const int *particle_indices, const int *associated_cells,
     const int *indices_rel_cell, const int *particle_count_per_cell,
-    float *densities
+    FP *densities
 ) {
     // Grid-stride loop. Equivalent to regular if-statement grid is large enough
     // to cover all iterations of the loop.
@@ -182,7 +180,7 @@ void thesis::shared_2d::charge_density(
         // Position in world coordinates.
         const auto x = pos_x[particle_index];
         const auto y = pos_y[particle_index];
-        const auto position = float3{
+        const auto position = FP3{
             x, y, 0
         };
         // Position in grid coordinates with first cell center as origin.
@@ -194,7 +192,7 @@ void thesis::shared_2d::charge_density(
 
         // uvw-position relative to associated cell.
         const auto associated_cell_center = int3{ i, j, 0 };
-        const auto pos_rel_cell = float3{
+        const auto pos_rel_cell = FP3{
             u - associated_cell_center.x,
             v - associated_cell_center.y,
             w - associated_cell_center.z
@@ -207,9 +205,9 @@ void thesis::shared_2d::charge_density(
         const auto cell_11_weight =      pos_rel_cell.x  *      pos_rel_cell.y;
 
         // Assumed size: 4 * blockDim.x.
-        extern __shared__ float s_densities[];
+        extern __shared__ FP s_densities[];
         // Helper to access 1D array using 2D index.
-        const auto density = [&](const int row, const int column) -> float & {
+        const auto density = [&](const int row, const int column) -> FP & {
             return s_densities[column + row * blockDim.x];
         };
 

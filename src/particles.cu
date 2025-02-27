@@ -7,7 +7,7 @@
 #include "cnpy.h"
 
 namespace {
-    void parse_line(std::ifstream &file, std::vector<float> &positions) {
+    void parse_line(std::ifstream &file, std::vector<FP> &positions) {
         auto line_x = std::string{};
         getline(file, line_x);
         auto stream_x = std::stringstream{ line_x };
@@ -40,7 +40,7 @@ thesis::HostParticles::HostParticles(
 }
 
 void thesis::HostParticles::copy(const DeviceParticles &particles) {
-    const auto size = pos_x.size() * sizeof(float);
+    const auto size = pos_x.size() * sizeof(FP);
     cudaMemcpy(pos_x.data(), particles.pos_x, size, cudaMemcpyDeviceToHost);
     cudaMemcpy(pos_y.data(), particles.pos_y, size, cudaMemcpyDeviceToHost);
     cudaMemcpy(pos_z.data(), particles.pos_z, size, cudaMemcpyDeviceToHost);
@@ -55,9 +55,9 @@ void thesis::HostParticles::save(std::filesystem::path filepath) {
 
 thesis::DeviceParticles::DeviceParticles(const HostParticles &particles) {
     const auto size = particles.pos_x.size();
-    cudaMalloc(&pos_x, size * sizeof(float));
-    cudaMalloc(&pos_y, size * sizeof(float));
-    cudaMalloc(&pos_z, size * sizeof(float));
+    cudaMalloc(&pos_x, size * sizeof(FP));
+    cudaMalloc(&pos_y, size * sizeof(FP));
+    cudaMalloc(&pos_z, size * sizeof(FP));
 }
 
 thesis::DeviceParticles::~DeviceParticles() {
@@ -67,7 +67,7 @@ thesis::DeviceParticles::~DeviceParticles() {
 }
 
 void thesis::DeviceParticles::copy(const HostParticles &particles) {
-    const auto size = particles.pos_x.size() * sizeof(float);
+    const auto size = particles.pos_x.size() * sizeof(FP);
     cudaMemcpy(pos_x, particles.pos_x.data(), size, cudaMemcpyHostToDevice);
     cudaMemcpy(pos_y, particles.pos_y.data(), size, cudaMemcpyHostToDevice);
     cudaMemcpy(pos_z, particles.pos_z.data(), size, cudaMemcpyHostToDevice);

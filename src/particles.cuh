@@ -4,13 +4,15 @@
 #include <filesystem>
 #include <vector>
 
+#include "common.cuh"
+
 namespace thesis {
     struct DeviceParticles;
     
     struct HostParticles {
-        std::vector<float> pos_x;
-        std::vector<float> pos_y;
-        std::vector<float> pos_z;
+        std::vector<FP> pos_x;
+        std::vector<FP> pos_y;
+        std::vector<FP> pos_z;
 
         HostParticles(int count);
         HostParticles(
@@ -23,9 +25,9 @@ namespace thesis {
     };
 
     struct DeviceParticles {
-        float *pos_x;
-        float *pos_y;
-        float *pos_z;
+        FP *pos_x;
+        FP *pos_y;
+        FP *pos_z;
 
         DeviceParticles(const HostParticles &particles);
         DeviceParticles(const DeviceParticles &) = delete;

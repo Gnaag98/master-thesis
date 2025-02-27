@@ -1,11 +1,9 @@
 #include "charge_density_global_2d.cuh"
 
-#include "common.cuh"
-
 __global__
 void thesis::global_2d::charge_density(
-    const float *pos_x, const float *pos_y, const size_t particle_count,
-    const int3 grid_dimensions, const int cell_size, float *densities
+    const FP *pos_x, const FP *pos_y, const size_t particle_count,
+    const int3 grid_dimensions, const int cell_size, FP *densities
 ) {
     // Grid-stride loop. Equivalent to regular if-statement if grid is large
     // enough to cover all iterations of the loop.
@@ -14,7 +12,7 @@ void thesis::global_2d::charge_density(
         index < particle_count;
         index += blockDim.x * gridDim.x
     ) {
-        const auto position = float3{ pos_x[index], pos_y[index], 0 };
+        const auto position = FP3{ pos_x[index], pos_y[index], 0 };
         const auto [ u, v, w ] = cell_coordinates(position, cell_size);
 
         // 2D index, or center of surrounding cell closest to the origin.
@@ -29,7 +27,7 @@ void thesis::global_2d::charge_density(
         const auto cell_110_center = int3{ i + 1, j + 1, 0 };
 
         // uvw-position relative to cell_000.
-        const auto pos_rel_cell = float3{
+        const auto pos_rel_cell = FP3{
             u - cell_000_center.x,
             v - cell_000_center.y,
             w - cell_000_center.z

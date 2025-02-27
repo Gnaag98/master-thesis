@@ -4,6 +4,8 @@
 #include <numeric>
 #include <random>
 
+#include "common.cuh"
+
 namespace {
     /// Returns all indices in the range [0, count - 1) in random order.
     auto get_shuffled_indices(const int count, const int random_seed) {
@@ -20,7 +22,7 @@ namespace {
         const int particles_per_cell, const int random_seed
     ) -> thesis::HostParticles {
         auto random_engine = std::default_random_engine(random_seed);
-        auto position_distribution = std::uniform_real_distribution<float>(
+        auto position_distribution = std::uniform_real_distribution<FP>(
             0, cell_size
         );
 
@@ -156,7 +158,7 @@ namespace {
         }
 
         // Generate particles from particle densities.
-        auto position_distribution = std::uniform_real_distribution<float>(
+        auto position_distribution = std::uniform_real_distribution<FP>(
             0, cell_size
         );
         auto particles = thesis::HostParticles{ particle_count };

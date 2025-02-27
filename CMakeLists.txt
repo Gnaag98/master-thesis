@@ -28,8 +28,11 @@ target_include_directories(${PROJECT_NAME}
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 
+set_target_properties(${PROJECT_NAME}
+    PROPERTIES CUDA_ARCHITECTURES 75
+)
+
 target_compile_options(${PROJECT_NAME}
-    PRIVATE -arch=sm_75
     PRIVATE --expt-relaxed-constexpr
     PRIVATE --Werror=all-warnings
     #PRIVATE -lineinfo
