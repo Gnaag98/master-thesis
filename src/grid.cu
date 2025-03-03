@@ -7,7 +7,7 @@ thesis::HostGrid::HostGrid(const int3 dimensions)
       dimensions{ dimensions } {}
 
 void thesis::HostGrid::copy(const DeviceGrid &grid) {
-    const auto size = cells.size() * sizeof(float);
+    const auto size = cells.size() * sizeof(FP);
     cudaMemcpy(cells.data(), grid.cells, size, cudaMemcpyDeviceToHost);
 }
 
@@ -19,7 +19,7 @@ void thesis::HostGrid::save(std::filesystem::path filepath) {
 thesis::DeviceGrid::DeviceGrid(const int3 dimensions)
     : dimensions{ dimensions } {
     const auto cell_count = dimensions.x * dimensions.y * dimensions.z;
-    cudaMalloc(&cells, cell_count * sizeof(float));
+    cudaMalloc(&cells, cell_count * sizeof(FP));
 }
 
 thesis::DeviceGrid::~DeviceGrid() {
@@ -27,6 +27,6 @@ thesis::DeviceGrid::~DeviceGrid() {
 }
 
 void thesis::DeviceGrid::copy(const HostGrid &grid) {
-    const auto size = grid.cells.size() * sizeof(float);
+    const auto size = grid.cells.size() * sizeof(FP);
     cudaMemcpy(cells, grid.cells.data(), size, cudaMemcpyHostToDevice);
 }

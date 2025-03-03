@@ -4,11 +4,13 @@
 #include <filesystem>
 #include <vector>
 
+#include "common.cuh"
+
 namespace thesis {
     struct DeviceGrid;
 
     struct HostGrid {
-        std::vector<float> cells;
+        std::vector<FP> cells;
         int3 dimensions;
 
         HostGrid(int3 dimensions);
@@ -19,7 +21,7 @@ namespace thesis {
     };
 
     struct DeviceGrid {
-        float *cells;
+        FP *cells;
         int3 dimensions;
 
         DeviceGrid(int3 dimensions);

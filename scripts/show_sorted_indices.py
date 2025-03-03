@@ -11,8 +11,6 @@ root_directory = scripts_directory.parent
 
 
 def plot(grid_size_x: int, grid_size_y: int, x: list, y: list):
-    # Get charge densities.
-
     # Initialize size of figure before drawing rectangles since add_patch
     # doesn't resize the axes, including padding outside grid.
     fig, ax = plt.subplots()

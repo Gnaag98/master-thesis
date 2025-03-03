@@ -1,6 +1,7 @@
 #ifndef THESIS_CHARGE_DENSITY_SHARED_2D_CUH
 #define THESIS_CHARGE_DENSITY_SHARED_2D_CUH
 
+#include "common.cuh"
 #include "int_array.cuh"
 
 namespace thesis::shared_2d {
@@ -11,7 +12,7 @@ namespace thesis::shared_2d {
 
     __global__
     void associate_particles_with_cells(
-        const float *pos_x, const float *pos_y, size_t particle_count,
+        const FP *pos_x, const FP *pos_y, size_t particle_count,
         int3 grid_dimensions, int cell_size, int *cell_indices
     );
 
@@ -36,11 +37,10 @@ namespace thesis::shared_2d {
      * contextual cell data.
      */
     void charge_density(
-        const float *pos_x, const float *pos_y, size_t particle_count,
-        float particle_charge, int3 grid_dimensions, int cell_size,
-        const int *particle_indices, const int *associated_cells,
-        const int *indices_rel_cell, const int *particle_count_per_cell,
-        float *densities
+        const FP *pos_x, const FP *pos_y, size_t particle_count,
+        int3 grid_dimensions, int cell_size, const int *particle_indices,
+        const int *associated_cells, const int *indices_rel_cell,
+        const int *particle_count_per_cell, FP *densities
     );
 };
 

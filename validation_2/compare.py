@@ -25,23 +25,20 @@ def main():
     version = args.version
     particle_count: int = args.particle_count
 
-    particle_charge = 1.0
-
-
     # Directories relative to this file.
     directory = Path(__file__).parent
     densities_filepath = directory / 'output' / f'charge_densities_{version}.npy'
 
     densities = get_densities(densities_filepath, grid_size_x, grid_size_y)
     
-    total_charge_product = particle_count * particle_charge
-    total_charge_sum = densities.sum()
-    error = total_charge_sum - total_charge_product
+    total_charge_expected = particle_count
+    total_charge_computed = densities.sum()
+    error = total_charge_computed - total_charge_expected
     error_absolute = abs(error)
-    error_relative = error_absolute / total_charge_sum
+    error_relative = error_absolute / total_charge_computed
     print(f'particle_count: {particle_count}')
-    print(f'total_charge(product): {total_charge_product}')
-    print(f'total_charge(sum): {total_charge_sum}')
+    print(f'total_charge(expected): {total_charge_expected}')
+    print(f'total_charge(computed): {total_charge_computed}')
     print(f'error: {error}')
     print(f'error_absolute: {error_absolute}')
     print(f'error_relative: {error_relative}')

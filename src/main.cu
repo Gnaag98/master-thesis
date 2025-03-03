@@ -18,8 +18,6 @@
 int main(int argc, char *argv[]) {
     using namespace thesis;
 
-    // Unit charge.
-    const auto particle_charge = 1.0f;
     // Number of outside layers of ghost cells.
     const auto ghost_layer_count = 1;
 
@@ -75,7 +73,7 @@ int main(int argc, char *argv[]) {
 
     // Initialize particles.
     auto h_particles = generate_particles(
-        simulation_dimensions, cell_size, particles_per_cell, particle_charge,
+        simulation_dimensions, cell_size, particles_per_cell,
         random_seed, particle_distribution, positions_filepath
     );
     auto d_particles = DeviceParticles{ h_particles };
@@ -153,7 +151,7 @@ int main(int argc, char *argv[]) {
             using namespace global_2d;
             charge_density<<<block_count, block_size>>>(
                 d_particles.pos_x, d_particles.pos_y, particle_count,
-                particle_charge, grid_dimensions, cell_size,
+                grid_dimensions, cell_size,
                 d_charge_densities.cells
             );
             break;
@@ -198,10 +196,9 @@ int main(int argc, char *argv[]) {
                     4 * block_size * sizeof(float)
                 >>>(
                     d_particles.pos_x, d_particles.pos_y, particle_count,
-                    particle_charge, grid_dimensions, cell_size,
-                    d_particle_indices_sorted.i, d_associated_cells_sorted.i,
-                    d_particle_indices_rel_cell.i, d_particle_count_per_cell.i,
-                    d_charge_densities.cells
+                    grid_dimensions, cell_size, d_particle_indices_sorted.i,
+                    d_associated_cells_sorted.i, d_particle_indices_rel_cell.i,
+                    d_particle_count_per_cell.i, d_charge_densities.cells
                 );
                 //cudaDeviceSynchronize();
             }
@@ -234,7 +231,7 @@ int main(int argc, char *argv[]) {
         h_charge_densities.copy(d_charge_densities);
 
         std::cout << "Saving to disk.\n";
-        h_particles.save_positions(*output_directory / "positions.npz");
+        h_particles.save(*output_directory / "positions.npz");
         
 
         h_particle_indices.save(*output_directory / "particle_indices.npy");
