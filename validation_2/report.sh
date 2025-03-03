@@ -125,7 +125,7 @@ run_index=1
 for dim in 256 512 1024; do
     for ppc in 16 32; do
         filepath=$( create_file "nonrandom_${dim}" ${dim} ${run_index} )
-        #nonrandom_loop ${dim} ${dim} ${ppc} ${filepath}
+        nonrandom_loop ${dim} ${dim} ${ppc} ${filepath}
         ((++run_index))
     done
 done
